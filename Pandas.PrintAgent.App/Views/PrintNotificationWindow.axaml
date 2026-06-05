@@ -1,0 +1,46 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Pandas.PrintAgent.App.Views.PrintNotificationWindow"
+        Width="360"
+        Height="118"
+        CanResize="False"
+        ShowInTaskbar="False"
+        WindowDecorations="None"
+        Topmost="True"
+        Background="Transparent">
+    <Border Margin="8"
+            Padding="14"
+            Background="#FFFFFF"
+            BorderBrush="#B9C4D0"
+            BorderThickness="1"
+            CornerRadius="8">
+        <Grid ColumnDefinitions="48,*" RowDefinitions="Auto,Auto" ColumnSpacing="12" RowSpacing="4">
+            <Border Grid.RowSpan="2"
+                    Width="42"
+                    Height="42"
+                    CornerRadius="8"
+                    Background="#EAF6EF"
+                    VerticalAlignment="Top">
+                <TextBlock Text="POS"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           FontWeight="SemiBold"
+                           Foreground="#1F6F43"/>
+            </Border>
+
+            <TextBlock x:Name="TitleText"
+                       Grid.Column="1"
+                       Text="Impresion recibida"
+                       FontSize="15"
+                       FontWeight="SemiBold"
+                       Foreground="#15202B"/>
+
+            <TextBlock x:Name="MessageText"
+                       Grid.Row="1"
+                       Grid.Column="1"
+                       Text="El ticket se va a imprimir en el POS."
+                       TextWrapping="Wrap"
+                       Foreground="#536170"/>
+        </Grid>
+    </Border>
+</Window>

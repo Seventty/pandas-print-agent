@@ -1,0 +1,48 @@
+# Build output
+bin/
+obj/
+publish/
+**/bin/
+**/obj/
+**/publish/
+
+# IDE/editor state
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Test and coverage output
+TestResults/
+coverage/
+coverage.*
+*.trx
+*.coverage
+*.coveragexml
+
+# Logs and runtime diagnostics
+logs/
+**/logs/
+*.log
+*.binlog
+*.dmp
+
+# Local/private configuration
+appsettings.Local.json
+appsettings.Development.local.json
+*.local.json
+.env
+.env.*
+
+# OS/filesystem noise
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# NuGet/package artifacts
+*.nupkg
+*.snupkg
+packages/

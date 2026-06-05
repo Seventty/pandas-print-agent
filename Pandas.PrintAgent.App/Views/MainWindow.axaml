@@ -1,0 +1,194 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Pandas.PrintAgent.App.ViewModels"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        d:DesignWidth="760"
+        d:DesignHeight="820"
+        x:Class="Pandas.PrintAgent.App.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Icon="/Assets/pandas-logo.ico"
+        Title="PANDAS Print Agent"
+        Width="760"
+        Height="820"
+        MinWidth="760"
+        MinHeight="820"
+        MaxWidth="760"
+        MaxHeight="820"
+        CanResize="False"
+        WindowStartupLocation="CenterScreen"
+        ExtendClientAreaToDecorationsHint="False"
+        Background="#F6F8FA">
+
+    <Design.DataContext>
+        <vm:MainWindowViewModel/>
+    </Design.DataContext>
+
+    <Window.Styles>
+        <Style Selector="TextBlock">
+            <Setter Property="Foreground" Value="#27384A"/>
+        </Style>
+        <Style Selector="TextBox">
+            <Setter Property="Foreground" Value="#15202B"/>
+            <Setter Property="Background" Value="#FFFFFF"/>
+            <Setter Property="BorderBrush" Value="#B9C4D0"/>
+        </Style>
+        <Style Selector="NumericUpDown">
+            <Setter Property="Foreground" Value="#15202B"/>
+            <Setter Property="Background" Value="#FFFFFF"/>
+            <Setter Property="BorderBrush" Value="#B9C4D0"/>
+        </Style>
+        <Style Selector="CheckBox">
+            <Setter Property="Foreground" Value="#27384A"/>
+        </Style>
+        <Style Selector="Button">
+            <Setter Property="Foreground" Value="#15202B"/>
+            <Setter Property="Background" Value="#FFFFFF"/>
+            <Setter Property="BorderBrush" Value="#B9C4D0"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="12,7"/>
+            <Setter Property="MinHeight" Value="34"/>
+        </Style>
+        <Style Selector="Button:pointerover">
+            <Setter Property="Background" Value="#EEF3F7"/>
+            <Setter Property="BorderBrush" Value="#8DA2B5"/>
+        </Style>
+    </Window.Styles>
+
+    <ScrollViewer>
+        <Grid Margin="24" RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="18">
+            <Border Grid.Row="0"
+                    Padding="18"
+                    CornerRadius="6"
+                    Background="#FFFFFF"
+                    BorderBrush="#D9E0E7"
+                    BorderThickness="1">
+                <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="6">
+                    <StackPanel Grid.Row="0" Grid.Column="0" Spacing="0">
+                        <TextBlock Text="PANDAS"
+                                   FontSize="28"
+                                   FontWeight="SemiBold"
+                                   Foreground="#15202B"/>
+                        <TextBlock Text="Print Agent"
+                                   FontSize="14"
+                                   Foreground="#536170"/>
+                    </StackPanel>
+                    <TextBlock Grid.Row="1"
+                               Text="{Binding StatusText}"
+                               TextWrapping="Wrap"
+                               Foreground="{Binding StatusForeground}"
+                               FontWeight="SemiBold"/>
+                    <TextBlock Grid.Row="2"
+                               Text="{Binding TokenStorageStatus}"
+                               TextWrapping="Wrap"
+                               Foreground="#536170"/>
+                </Grid>
+            </Border>
+
+            <Grid Grid.Row="1" ColumnDefinitions="180,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="12" ColumnSpacing="12">
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="Backend URL" VerticalAlignment="Center"/>
+                <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding BackendBaseUrl}" PlaceholderText="https://paleden-backend.example.com"/>
+
+                <TextBlock Grid.Row="1" Grid.Column="0" Text="API prefix" VerticalAlignment="Center"/>
+                <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding ApiPrefix}" PlaceholderText="api"/>
+
+                <TextBlock Grid.Row="2" Grid.Column="0" Text="Token" VerticalAlignment="Center"/>
+                <Grid Grid.Row="2" Grid.Column="1" ColumnDefinitions="*,42">
+                    <TextBox Grid.Column="0"
+                             Grid.ColumnSpan="2"
+                             Text="{Binding AgentToken}"
+                             PasswordChar="{Binding TokenPasswordChar}"
+                             PlaceholderText="X-Print-Agent-Token"
+                             Padding="10,6,44,6"/>
+                    <Button Grid.Column="1"
+                            Command="{Binding ToggleTokenVisibilityCommand}"
+                            ToolTip.Tip="{Binding TokenVisibilityLabel}"
+                            Width="34"
+                            Height="28"
+                            Margin="0,2,4,2"
+                            Padding="0"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Center"
+                            Background="Transparent"
+                            BorderThickness="0">
+                        <Viewbox Width="18" Height="18">
+                            <Grid Width="24" Height="24">
+                                <Path Data="M12 5 C7 5 3 12 3 12 C3 12 7 19 12 19 C17 19 21 12 21 12 C21 12 17 5 12 5 Z"
+                                      Stroke="#3D4B5C"
+                                      StrokeThickness="2"
+                                      Fill="Transparent"/>
+                                <Ellipse Width="6"
+                                         Height="6"
+                                         Stroke="#3D4B5C"
+                                         StrokeThickness="2"
+                                         Fill="Transparent"
+                                         HorizontalAlignment="Center"
+                                         VerticalAlignment="Center"/>
+                                <Path Data="M4 4 L20 20"
+                                      IsVisible="{Binding IsTokenVisible}"
+                                      Stroke="#3D4B5C"
+                                      StrokeThickness="2"/>
+                            </Grid>
+                        </Viewbox>
+                    </Button>
+                </Grid>
+
+            </Grid>
+
+            <Grid Grid.Row="2" ColumnDefinitions="180,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="12" ColumnSpacing="12">
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="Printer host" VerticalAlignment="Center"/>
+                <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding PrinterHost}" PlaceholderText="10.0.0.28"/>
+
+                <TextBlock Grid.Row="1" Grid.Column="0" Text="Printer port" VerticalAlignment="Center"/>
+                <NumericUpDown Grid.Row="1" Grid.Column="1" Value="{Binding PrinterPort}" Minimum="1" Maximum="65535" Increment="1"/>
+
+                <TextBlock Grid.Row="2" Grid.Column="0" Text="Poll interval ms" VerticalAlignment="Center"/>
+                <NumericUpDown Grid.Row="2" Grid.Column="1" Value="{Binding PollIntervalMs}" Minimum="250" Maximum="60000" Increment="250"/>
+
+                <TextBlock Grid.Row="3" Grid.Column="0" Text="Printer timeout ms" VerticalAlignment="Center"/>
+                <NumericUpDown Grid.Row="3" Grid.Column="1" Value="{Binding PrinterTimeoutMs}" Minimum="500" Maximum="60000" Increment="500"/>
+
+                <TextBlock Grid.Row="4" Grid.Column="0" Text="Job target" VerticalAlignment="Center"/>
+                <CheckBox Grid.Row="4" Grid.Column="1" IsChecked="{Binding UseJobPrinterTarget}" Content="Usar targetHost/targetPort del trabajo cuando venga definido"/>
+
+                <TextBlock Grid.Row="5" Grid.Column="0" Text="Payload dumps" VerticalAlignment="Center"/>
+                <CheckBox Grid.Row="5" Grid.Column="1" IsChecked="{Binding SavePayloads}" Content="Guardar payload binario de cada trabajo"/>
+            </Grid>
+
+            <Grid Grid.Row="3" ColumnDefinitions="180,*" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="12" ColumnSpacing="12">
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="Log file" VerticalAlignment="Center"/>
+                <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding LogFilePath}" PlaceholderText="logs/print-agent.log"/>
+
+                <TextBlock Grid.Row="1" Grid.Column="0" Text="Payload folder" VerticalAlignment="Center"/>
+                <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding PayloadDumpDirectory}" PlaceholderText="logs/payloads"/>
+
+                <TextBlock Grid.Row="2" Grid.Column="0" Text="Ultimo trabajo" VerticalAlignment="Center"/>
+                <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding LastJob}" TextWrapping="Wrap" Foreground="#27384A"/>
+
+                <TextBlock Grid.Row="3" Grid.Column="0" Text="Ultimo error" VerticalAlignment="Center"/>
+                <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding LastError}" TextWrapping="Wrap" Foreground="#8A2C2C"/>
+            </Grid>
+
+            <Grid Grid.Row="4" RowDefinitions="Auto,Auto" RowSpacing="12">
+                <WrapPanel Grid.Row="0" HorizontalAlignment="Right" ItemSpacing="8">
+                    <Button Content="Guardar" Command="{Binding SaveCommand}" MinWidth="96"/>
+                    <Button Content="Reload" Command="{Binding ReloadCommand}" MinWidth="96"/>
+                    <Button Content="Status" Command="{Binding CheckBackendCommand}" MinWidth="96"/>
+                    <Button Content="Probar impresora" Command="{Binding TestPrinterCommand}" MinWidth="132"/>
+                    <Button Content="Abrir logs" Command="{Binding OpenLogsCommand}" MinWidth="104"/>
+                    <Button Content="Salir" Command="{Binding ExitCommand}" MinWidth="84"/>
+                </WrapPanel>
+
+                <Border Grid.Row="1"
+                        Padding="12"
+                        Background="#EEF3F7"
+                        BorderBrush="#D9E0E7"
+                        BorderThickness="1"
+                        CornerRadius="6">
+                    <TextBlock Text="{Binding LastLogLine}" TextWrapping="Wrap" Foreground="#27384A"/>
+                </Border>
+            </Grid>
+        </Grid>
+    </ScrollViewer>
+</Window>
