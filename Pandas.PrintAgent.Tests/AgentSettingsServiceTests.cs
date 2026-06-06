@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Pandas.PrintAgent.Core;
+using Pandas.PrintAgent.Core.Printing;
 using Pandas.PrintAgent.Core.Security;
 using Pandas.PrintAgent.Core.Settings;
 
@@ -87,6 +88,7 @@ public sealed class AgentSettingsServiceTests
         var settings = await service.LoadAsync();
 
         Assert.Equal("legacy-token", settings.AgentToken);
+        Assert.Equal(PrinterConnectorType.NetworkTcp, settings.PrinterConnectorType);
     }
 
     [Fact]
@@ -97,8 +99,10 @@ public sealed class AgentSettingsServiceTests
             ["PANDAS_BACKEND_BASE_URL"] = "https://env-backend.example.com",
             ["PANDAS_API_PREFIX"] = "v1",
             ["PANDAS_PRINT_AGENT_TOKEN"] = "env-token",
+            ["PANDAS_PRINTER_CONNECTOR"] = "usb",
             ["PANDAS_PRINTER_HOST"] = "192.168.1.20",
             ["PANDAS_PRINTER_PORT"] = "9200",
+            ["PANDAS_PRINTER_QUEUE_NAME"] = "POS USB",
             ["PANDAS_POLL_INTERVAL_MS"] = "3000",
             ["PANDAS_PRINTER_TIMEOUT_MS"] = "7000",
             ["PANDAS_USE_JOB_PRINTER_TARGET"] = "true",
@@ -123,8 +127,10 @@ public sealed class AgentSettingsServiceTests
             Assert.Equal("https://env-backend.example.com", settings.BackendBaseUrl);
             Assert.Equal("v1", settings.ApiPrefix);
             Assert.Equal("env-token", settings.AgentToken);
+            Assert.Equal(PrinterConnectorType.Usb, settings.PrinterConnectorType);
             Assert.Equal("192.168.1.20", settings.PrinterHost);
             Assert.Equal(9200, settings.PrinterPort);
+            Assert.Equal("POS USB", settings.PrinterQueueName);
             Assert.Equal(3000, settings.PollIntervalMs);
             Assert.Equal(7000, settings.PrinterTimeoutMs);
             Assert.True(settings.UseJobPrinterTarget);
@@ -145,6 +151,33 @@ public sealed class AgentSettingsServiceTests
     public void ValidateAllowsEmptyToken()
     {
         var settings = ValidSettings() with { AgentToken = "" };
+
+        settings.Validate();
+    }
+
+    [Fact]
+    public void ValidateRequiresQueueNameForInstalledPrinterConnector()
+    {
+        var settings = ValidSettings() with
+        {
+            PrinterConnectorType = PrinterConnectorType.Usb,
+            PrinterQueueName = "",
+        };
+
+        var error = Assert.Throws<InvalidOperationException>(() => settings.Validate());
+        Assert.Contains("PrinterQueueName", error.Message);
+    }
+
+    [Fact]
+    public void ValidateAllowsInstalledPrinterConnectorWithQueueName()
+    {
+        var settings = ValidSettings() with
+        {
+            PrinterConnectorType = PrinterConnectorType.Bluetooth,
+            PrinterQueueName = "POS Bluetooth",
+            PrinterHost = "",
+            PrinterPort = 0,
+        };
 
         settings.Validate();
     }

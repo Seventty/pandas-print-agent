@@ -7,7 +7,7 @@ Agente local para imprimir tickets POS desde un backend compatible en produccion
 1. El usuario presiona `Imprimir` en Pedidos o Facturacion.
 2. El backend crea un trabajo en la cola `PrintJob`.
 3. La app desktop del agente consulta el backend cada pocos segundos.
-4. El agente imprime el ticket al POS local por TCP, normalmente `10.0.0.28:9100`.
+4. El agente imprime el ticket al POS local por el conector configurado.
 5. El agente marca el trabajo como impreso o fallido.
 
 ## GUI desktop
@@ -16,7 +16,9 @@ El flujo recomendado es `Pandas.PrintAgent.App`, una app Avalonia con icono en b
 
 - Backend URL y API prefix.
 - Token del agente, opcional si el backend no exige autenticacion por token.
-- Host, puerto, timeout e intervalo de polling.
+- Conector de impresora: `WiFi/Ethernet (TCP)`, `USB` o `Bluetooth`.
+- Host/puerto para red TCP, o dropdown de impresoras instaladas para USB/Bluetooth.
+- Timeout e intervalo de polling.
 - Uso opcional de `targetHost/targetPort` del trabajo.
 - Logs y payload dumps.
 
@@ -25,7 +27,7 @@ Botones disponibles:
 - `Guardar`: guarda settings no sensibles en `appsettings.json`, guarda o limpia el token seguro y recarga el worker.
 - `Reload`: reinicia el worker interno sin relanzar la app.
 - `Status`: llama `GET /api/print-agent/status` sin consumir trabajos.
-- `Probar impresora`: envia una prueba ESC/POS directa al POS.
+- `Probar WiFi/Ethernet`, `Probar USB` o `Probar Bluetooth`: envia una prueba ESC/POS directa al conector configurado.
 - `Abrir logs`: abre el archivo o carpeta de logs.
 - `Salir`: detiene el worker y cierra la app.
 
@@ -54,8 +56,10 @@ Para automatizacion/CLI se puede usar `PANDAS_PRINT_AGENT_TOKEN`. El agente tamb
   "BackendBaseUrl": "https://backend.example.com",
   "ApiPrefix": "api",
   "PollIntervalMs": 2000,
+  "PrinterConnectorType": "NetworkTcp",
   "PrinterHost": "10.0.0.28",
   "PrinterPort": 9100,
+  "PrinterQueueName": "",
   "PrinterTimeoutMs": 5000,
   "UseJobPrinterTarget": false,
   "LogFilePath": "logs/print-agent.log",
@@ -63,6 +67,8 @@ Para automatizacion/CLI se puede usar `PANDAS_PRINT_AGENT_TOKEN`. El agente tamb
   "PayloadDumpDirectory": "logs/payloads"
 }
 ```
+
+`WiFi/Ethernet (TCP)` usa `PrinterHost` y `PrinterPort`. USB y Bluetooth muestran las impresoras instaladas detectadas por el sistema; al seleccionar una, PANDAS guarda su nombre en `PrinterQueueName`. Si conectas o emparejas una impresora con la app abierta, usa `Refrescar`.
 
 Si el backend exige token, configura:
 
@@ -125,7 +131,7 @@ Para probar el POS sin backend ni cola:
 .\Pandas.PrintAgent.exe --test-print
 ```
 
-Si esa prueba dice `Prueba enviada` pero no sale papel, la conexion TCP al puerto 9100 acepta bytes, pero la impresora no los esta procesando fisicamente. Revisa IP, puerto, papel, tapa, estado interno del POS o configuracion de red/RAW printing.
+Si esa prueba dice `Prueba enviada` pero no sale papel, el conector acepto los bytes, pero la impresora no los esta procesando fisicamente. Revisa IP, puerto, nombre de impresora instalada, CUPS/Winspool, papel, tapa, estado interno del POS o configuracion RAW.
 
 Para guardar el payload binario de cada trabajo y poder compararlo, activa temporalmente:
 

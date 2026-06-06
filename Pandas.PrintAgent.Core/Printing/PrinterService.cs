@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Net.Sockets;
+using System.Runtime.InteropServices;
 using Pandas.PrintAgent.Core.Settings;
 
 namespace Pandas.PrintAgent.Core.Printing;
@@ -7,6 +8,32 @@ namespace Pandas.PrintAgent.Core.Printing;
 public sealed class PrinterService : IPrinterService
 {
     public async Task<PrintResult> SendPayloadAsync(byte[] payload, PrinterTarget target, AgentSettings settings, CancellationToken cancellationToken)
+    {
+        return target.ConnectorType == PrinterConnectorType.NetworkTcp
+            ? await SendTcpPayloadAsync(payload, target, settings, cancellationToken)
+            : await SendInstalledPrinterPayloadAsync(payload, target, settings, cancellationToken);
+    }
+
+    public static PrinterTarget TargetForSettings(AgentSettings settings)
+    {
+        return settings.PrinterConnectorType == PrinterConnectorType.NetworkTcp
+            ? PrinterTarget.ForNetwork(settings.PrinterHost, settings.PrinterPort)
+            : PrinterTarget.ForInstalledPrinter(settings.PrinterConnectorType, settings.PrinterQueueName);
+    }
+
+    public static PrinterTarget TargetForJob(PrintJob job, AgentSettings settings)
+    {
+        if (settings.PrinterConnectorType != PrinterConnectorType.NetworkTcp)
+        {
+            return PrinterTarget.ForInstalledPrinter(settings.PrinterConnectorType, settings.PrinterQueueName);
+        }
+
+        var host = settings.UseJobPrinterTarget && !string.IsNullOrWhiteSpace(job.TargetHost) ? job.TargetHost : settings.PrinterHost;
+        var port = settings.UseJobPrinterTarget && job.TargetPort > 0 ? job.TargetPort : settings.PrinterPort;
+        return PrinterTarget.ForNetwork(host!, port);
+    }
+
+    private static async Task<PrintResult> SendTcpPayloadAsync(byte[] payload, PrinterTarget target, AgentSettings settings, CancellationToken cancellationToken)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(settings.PrinterTimeoutMs);
@@ -28,11 +55,81 @@ public sealed class PrinterService : IPrinterService
         return new PrintResult(payload.Length, connect.ElapsedMilliseconds, write.ElapsedMilliseconds, total.ElapsedMilliseconds);
     }
 
-    public static PrinterTarget TargetForJob(PrintJob job, AgentSettings settings)
+    private static async Task<PrintResult> SendInstalledPrinterPayloadAsync(byte[] payload, PrinterTarget target, AgentSettings settings, CancellationToken cancellationToken)
     {
-        var host = settings.UseJobPrinterTarget && !string.IsNullOrWhiteSpace(job.TargetHost) ? job.TargetHost : settings.PrinterHost;
-        var port = settings.UseJobPrinterTarget && job.TargetPort > 0 ? job.TargetPort : settings.PrinterPort;
-        return new PrinterTarget(host!, port);
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(settings.PrinterTimeoutMs);
+
+        return OperatingSystem.IsWindows()
+            ? await SendWindowsInstalledPrinterPayloadAsync(payload, target, timeout.Token)
+            : await SendCupsInstalledPrinterPayloadAsync(payload, target, timeout.Token);
+    }
+
+    private static async Task<PrintResult> SendWindowsInstalledPrinterPayloadAsync(byte[] payload, PrinterTarget target, CancellationToken cancellationToken)
+    {
+        var total = Stopwatch.StartNew();
+        await Task.Run(() => WindowsRawPrinter.Send(target.QueueName, payload), cancellationToken).WaitAsync(cancellationToken);
+        total.Stop();
+        return new PrintResult(payload.Length, 0, total.ElapsedMilliseconds, total.ElapsedMilliseconds);
+    }
+
+    private static async Task<PrintResult> SendCupsInstalledPrinterPayloadAsync(byte[] payload, PrinterTarget target, CancellationToken cancellationToken)
+    {
+        var total = Stopwatch.StartNew();
+        var tempFile = Path.Combine(Path.GetTempPath(), $"pandas-print-agent-{Guid.NewGuid():N}.bin");
+
+        try
+        {
+            await File.WriteAllBytesAsync(tempFile, payload, cancellationToken);
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = "lp",
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true,
+            };
+            startInfo.ArgumentList.Add("-o");
+            startInfo.ArgumentList.Add("raw");
+            startInfo.ArgumentList.Add("-d");
+            startInfo.ArgumentList.Add(target.QueueName);
+            startInfo.ArgumentList.Add(tempFile);
+
+            using var process = Process.Start(startInfo)
+                ?? throw new InvalidOperationException("No se pudo iniciar el comando lp para imprimir por cola instalada.");
+            var outputTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
+            var errorTask = process.StandardError.ReadToEndAsync(cancellationToken);
+            await process.WaitForExitAsync(cancellationToken);
+            var output = await outputTask;
+            var error = await errorTask;
+
+            if (process.ExitCode != 0)
+            {
+                var message = string.IsNullOrWhiteSpace(error) ? output : error;
+                throw new InvalidOperationException($"No se pudo enviar a la cola {target.QueueName}: {message.Trim()}");
+            }
+
+            total.Stop();
+            return new PrintResult(payload.Length, 0, total.ElapsedMilliseconds, total.ElapsedMilliseconds);
+        }
+        catch (System.ComponentModel.Win32Exception error)
+        {
+            throw new InvalidOperationException("No se encontro el comando lp. Instala o habilita CUPS para imprimir por USB/Bluetooth.", error);
+        }
+        finally
+        {
+            try
+            {
+                if (File.Exists(tempFile))
+                {
+                    File.Delete(tempFile);
+                }
+            }
+            catch
+            {
+                // El archivo temporal no debe bloquear el flujo si CUPS ya recibio el trabajo.
+            }
+        }
     }
 
     public static byte[] BuildTestPayload()
@@ -80,5 +177,103 @@ public sealed class PrinterService : IPrinterService
         }
 
         return bytes.ToArray();
+    }
+
+    private static class WindowsRawPrinter
+    {
+        public static void Send(string printerName, byte[] payload)
+        {
+            if (string.IsNullOrWhiteSpace(printerName))
+            {
+                throw new InvalidOperationException("El nombre de la impresora instalada no puede estar vacio.");
+            }
+
+            if (!OpenPrinter(printerName, out var printerHandle, IntPtr.Zero))
+            {
+                ThrowWinspoolError($"No se pudo abrir la impresora instalada {printerName}.");
+            }
+
+            try
+            {
+                var docInfo = new DocInfo1
+                {
+                    DocumentName = "PANDAS Print Agent",
+                    OutputFile = null,
+                    DataType = "RAW",
+                };
+
+                if (StartDocPrinter(printerHandle, 1, ref docInfo) == 0)
+                {
+                    ThrowWinspoolError($"No se pudo iniciar el documento RAW en {printerName}.");
+                }
+
+                try
+                {
+                    if (!StartPagePrinter(printerHandle))
+                    {
+                        ThrowWinspoolError($"No se pudo iniciar pagina en {printerName}.");
+                    }
+
+                    try
+                    {
+                        if (!WritePrinter(printerHandle, payload, payload.Length, out var written) || written != payload.Length)
+                        {
+                            ThrowWinspoolError($"No se pudo escribir el payload completo en {printerName}.");
+                        }
+                    }
+                    finally
+                    {
+                        EndPagePrinter(printerHandle);
+                    }
+                }
+                finally
+                {
+                    EndDocPrinter(printerHandle);
+                }
+            }
+            finally
+            {
+                ClosePrinter(printerHandle);
+            }
+        }
+
+        private static void ThrowWinspoolError(string message)
+        {
+            throw new InvalidOperationException($"{message} Win32Error={Marshal.GetLastWin32Error()}");
+        }
+
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        private struct DocInfo1
+        {
+            [MarshalAs(UnmanagedType.LPWStr)]
+            public string DocumentName;
+
+            [MarshalAs(UnmanagedType.LPWStr)]
+            public string? OutputFile;
+
+            [MarshalAs(UnmanagedType.LPWStr)]
+            public string DataType;
+        }
+
+        [DllImport("winspool.drv", SetLastError = true, CharSet = CharSet.Unicode)]
+        private static extern bool OpenPrinter(string printerName, out IntPtr printer, IntPtr defaults);
+
+        [DllImport("winspool.drv", SetLastError = true, CharSet = CharSet.Unicode)]
+        private static extern int StartDocPrinter(IntPtr printer, int level, ref DocInfo1 docInfo);
+
+        [DllImport("winspool.drv", SetLastError = true)]
+        private static extern bool StartPagePrinter(IntPtr printer);
+
+        [DllImport("winspool.drv", SetLastError = true)]
+        private static extern bool WritePrinter(IntPtr printer, byte[] buffer, int count, out int written);
+
+        [DllImport("winspool.drv", SetLastError = true)]
+        private static extern bool EndPagePrinter(IntPtr printer);
+
+        [DllImport("winspool.drv", SetLastError = true)]
+        private static extern bool EndDocPrinter(IntPtr printer);
+
+        [DllImport("winspool.drv", SetLastError = true)]
+        private static extern bool ClosePrinter(IntPtr printer);
     }
 }

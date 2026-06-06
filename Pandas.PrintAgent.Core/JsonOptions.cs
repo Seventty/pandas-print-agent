@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Pandas.PrintAgent.Core;
 
@@ -8,5 +9,6 @@ public static class JsonOptions
     {
         WriteIndented = true,
         PropertyNameCaseInsensitive = true,
+        Converters = { new JsonStringEnumConverter() },
     };
 }

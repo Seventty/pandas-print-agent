@@ -58,7 +58,15 @@ catch (Exception error)
 static void LogStartup(string baseDirectory, AgentSettings settings, IAgentLogger logger)
 {
     logger.Log($"Backend: {settings.BackendBaseUrl}");
-    logger.Log($"POS: {settings.PrinterHost}:{settings.PrinterPort}");
+    logger.Log($"Connector: {settings.PrinterConnectorType.DisplayName()}");
+    if (settings.PrinterConnectorType == PrinterConnectorType.NetworkTcp)
+    {
+        logger.Log($"Printer: {settings.PrinterHost}:{settings.PrinterPort}");
+    }
+    else
+    {
+        logger.Log($"Printer queue: {settings.PrinterQueueName}");
+    }
     logger.Log($"UseJobPrinterTarget: {settings.UseJobPrinterTarget}");
     logger.Log($"Log: {AgentPaths.ResolveAgentPath(baseDirectory, settings.LogFilePath)}");
     if (settings.SavePayloads)

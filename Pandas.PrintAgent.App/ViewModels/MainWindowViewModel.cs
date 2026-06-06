@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Collections.ObjectModel;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -11,14 +12,33 @@ using Pandas.PrintAgent.Core.Worker;
 
 namespace Pandas.PrintAgent.App.ViewModels;
 
+public sealed record PrinterConnectorOption(PrinterConnectorType Value, string Label)
+{
+    public static IReadOnlyList<PrinterConnectorOption> All { get; } =
+    [
+        new PrinterConnectorOption(PrinterConnectorType.NetworkTcp, PrinterConnectorType.NetworkTcp.DisplayName()),
+        new PrinterConnectorOption(PrinterConnectorType.Usb, PrinterConnectorType.Usb.DisplayName()),
+        new PrinterConnectorOption(PrinterConnectorType.Bluetooth, PrinterConnectorType.Bluetooth.DisplayName()),
+    ];
+
+    public static PrinterConnectorOption Find(PrinterConnectorType value)
+    {
+        return All.First(option => option.Value == value);
+    }
+}
+
+public sealed record InstalledPrinterOption(string Name, string Label, InstalledPrinterConnectorHint ConnectorHint, bool IsDetected);
+
 public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
 {
     private readonly string _baseDirectory;
     private readonly AgentSettingsService? _settingsService;
     private readonly BackendStatusService? _backendStatus;
     private readonly IPrinterService? _printer;
+    private readonly IInstalledPrinterDiscoveryService? _printerDiscovery;
     private readonly FileAgentLogger? _logger;
     private readonly PrintAgentWorker? _worker;
+    private IReadOnlyList<InstalledPrinterInfo> installedPrinters = [];
 
     [ObservableProperty]
     private string backendBaseUrl = "https://backend.example.com";
@@ -41,11 +61,44 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     [ObservableProperty]
     private int pollIntervalMs = 2000;
 
+    public IReadOnlyList<PrinterConnectorOption> ConnectorOptions { get; } = PrinterConnectorOption.All;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsNetworkConnector))]
+    [NotifyPropertyChangedFor(nameof(IsInstalledPrinterConnector))]
+    [NotifyPropertyChangedFor(nameof(PrinterQueueLabel))]
+    [NotifyPropertyChangedFor(nameof(TestPrinterButtonText))]
+    private PrinterConnectorOption selectedConnectorOption = PrinterConnectorOption.Find(PrinterConnectorType.NetworkTcp);
+
+    public bool IsNetworkConnector => SelectedConnectorOption.Value == PrinterConnectorType.NetworkTcp;
+
+    public bool IsInstalledPrinterConnector => !IsNetworkConnector;
+
+    public string PrinterQueueLabel => SelectedConnectorOption.Value switch
+    {
+        PrinterConnectorType.Usb => "Impresora USB",
+        PrinterConnectorType.Bluetooth => "Impresora Bluetooth",
+        _ => "Impresora instalada",
+    };
+
+    public string TestPrinterButtonText => $"Probar {SelectedConnectorOption.Value.TestButtonName()}";
+
+    public ObservableCollection<InstalledPrinterOption> InstalledPrinterOptions { get; } = [];
+
+    [ObservableProperty]
+    private InstalledPrinterOption? selectedInstalledPrinterOption;
+
+    [ObservableProperty]
+    private string installedPrinterListStatusText = "Conecta o instala la impresora y presiona Refrescar.";
+
     [ObservableProperty]
     private string printerHost = "10.0.0.28";
 
     [ObservableProperty]
     private int printerPort = 9100;
+
+    [ObservableProperty]
+    private string printerQueueName = string.Empty;
 
     [ObservableProperty]
     private int printerTimeoutMs = 5000;
@@ -67,6 +120,12 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
 
     [ObservableProperty]
     private string statusForeground = "#536170";
+
+    [ObservableProperty]
+    private string printerStatusText = "Sin prueba de impresora.";
+
+    [ObservableProperty]
+    private string printerStatusForeground = "#536170";
 
     [ObservableProperty]
     private string lastJob = "Ninguno";
@@ -92,6 +151,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         AgentSettingsService settingsService,
         BackendStatusService backendStatus,
         IPrinterService printer,
+        IInstalledPrinterDiscoveryService printerDiscovery,
         FileAgentLogger logger,
         PrintAgentWorker worker)
     {
@@ -99,6 +159,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         _settingsService = settingsService;
         _backendStatus = backendStatus;
         _printer = printer;
+        _printerDiscovery = printerDiscovery;
         _logger = logger;
         _worker = worker;
 
@@ -127,6 +188,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         {
             var settings = await _settingsService.LoadAsync();
             ApplySettings(settings);
+            await RefreshInstalledPrintersAsync(settings.PrinterQueueName);
             await ReloadWorkerAsync(settings);
             await CheckBackendAsync(settings);
         });
@@ -152,6 +214,12 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     }
 
     [RelayCommand]
+    private async Task RefreshInstalledPrintersAsync()
+    {
+        await RunBusyAsync(async () => await RefreshInstalledPrintersAsync(PrinterQueueName));
+    }
+
+    [RelayCommand]
     private async Task ReloadAsync()
     {
         await RunBusyAsync(async () =>
@@ -174,10 +242,20 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         await RunBusyAsync(async () =>
         {
             var settings = BuildSettings();
+            var connectorName = settings.PrinterConnectorType.TestButtonName();
             RequireRuntimeServices();
             _logger!.UpdateLogFilePath(settings.LogFilePath);
-            await PrintAgentDiagnostics.RunTestPrintAsync(settings, _printer!, _logger, CancellationToken.None);
-            SetStatus("Prueba enviada a la impresora.", true);
+            try
+            {
+                await PrintAgentDiagnostics.RunTestPrintAsync(settings, _printer!, _logger, CancellationToken.None);
+                SetPrinterStatus($"Prueba {connectorName} enviada correctamente.", true);
+                SetStatus($"Prueba {connectorName} enviada a la impresora.", true);
+            }
+            catch (Exception error)
+            {
+                SetPrinterStatus($"Prueba {connectorName} fallo: {error.Message}", false);
+                throw;
+            }
         });
     }
 
@@ -252,8 +330,10 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
             ApiPrefix = ApiPrefix,
             AgentToken = AgentToken,
             PollIntervalMs = PollIntervalMs,
+            PrinterConnectorType = SelectedConnectorOption.Value,
             PrinterHost = PrinterHost,
             PrinterPort = PrinterPort,
+            PrinterQueueName = PrinterQueueName,
             PrinterTimeoutMs = PrinterTimeoutMs,
             UseJobPrinterTarget = UseJobPrinterTarget,
             LogFilePath = LogFilePath,
@@ -270,13 +350,28 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         ApiPrefix = settings.ApiPrefix;
         AgentToken = settings.AgentToken;
         PollIntervalMs = settings.PollIntervalMs;
+        SelectedConnectorOption = PrinterConnectorOption.Find(settings.PrinterConnectorType);
         PrinterHost = settings.PrinterHost;
         PrinterPort = settings.PrinterPort;
+        PrinterQueueName = settings.PrinterQueueName;
         PrinterTimeoutMs = settings.PrinterTimeoutMs;
         UseJobPrinterTarget = settings.UseJobPrinterTarget;
         LogFilePath = settings.LogFilePath;
         SavePayloads = settings.SavePayloads;
         PayloadDumpDirectory = settings.PayloadDumpDirectory;
+    }
+
+    partial void OnSelectedConnectorOptionChanged(PrinterConnectorOption value)
+    {
+        ApplyInstalledPrinterOptions(PrinterQueueName);
+    }
+
+    partial void OnSelectedInstalledPrinterOptionChanged(InstalledPrinterOption? value)
+    {
+        if (value is not null)
+        {
+            PrinterQueueName = value.Name;
+        }
     }
 
     private void ApplyStatus(AgentStatusSnapshot snapshot)
@@ -311,15 +406,101 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
 
     private void RequireRuntimeServices()
     {
-        if (_settingsService is null || _backendStatus is null || _printer is null || _logger is null || _worker is null)
+        if (_settingsService is null || _backendStatus is null || _printer is null || _printerDiscovery is null || _logger is null || _worker is null)
         {
             throw new InvalidOperationException("La aplicacion todavia no esta inicializada.");
         }
+    }
+
+    private async Task RefreshInstalledPrintersAsync(string? preferredQueueName)
+    {
+        RequireRuntimeServices();
+        try
+        {
+            installedPrinters = await _printerDiscovery!.GetInstalledPrintersAsync();
+            ApplyInstalledPrinterOptions(preferredQueueName);
+            InstalledPrinterListStatusText = installedPrinters.Count == 0
+                ? "No se detectaron impresoras instaladas en el sistema."
+                : $"{installedPrinters.Count} impresora(s) instalada(s) detectada(s).";
+        }
+        catch (Exception error)
+        {
+            installedPrinters = [];
+            InstalledPrinterOptions.Clear();
+            SelectedInstalledPrinterOption = null;
+            InstalledPrinterListStatusText = $"No se pudieron listar impresoras: {error.Message}";
+        }
+    }
+
+    private void ApplyInstalledPrinterOptions(string? preferredQueueName)
+    {
+        var selectedConnector = SelectedConnectorOption.Value;
+        var currentQueueName = FirstNonEmpty(preferredQueueName, PrinterQueueName);
+        var candidates = selectedConnector switch
+        {
+            PrinterConnectorType.Usb => installedPrinters
+                .Where(printer => printer.ConnectorHint is InstalledPrinterConnectorHint.Usb or InstalledPrinterConnectorHint.Unknown),
+            PrinterConnectorType.Bluetooth => installedPrinters
+                .Where(printer => printer.ConnectorHint is InstalledPrinterConnectorHint.Bluetooth or InstalledPrinterConnectorHint.Unknown),
+            _ => [],
+        };
+        var candidateList = candidates.ToList();
+        if (selectedConnector != PrinterConnectorType.NetworkTcp && candidateList.Count == 0)
+        {
+            candidateList = installedPrinters.ToList();
+        }
+
+        var options = candidateList.Select(ToOption).ToList();
+        if (!string.IsNullOrWhiteSpace(currentQueueName) &&
+            !options.Any(option => string.Equals(option.Name, currentQueueName, StringComparison.OrdinalIgnoreCase)))
+        {
+            options.Insert(0, new InstalledPrinterOption(currentQueueName, $"{currentQueueName} (no detectada)", InstalledPrinterConnectorHint.Unknown, false));
+        }
+
+        InstalledPrinterOptions.Clear();
+        foreach (var option in options)
+        {
+            InstalledPrinterOptions.Add(option);
+        }
+
+        SelectedInstalledPrinterOption = InstalledPrinterOptions.FirstOrDefault(option => string.Equals(option.Name, currentQueueName, StringComparison.OrdinalIgnoreCase))
+            ?? InstalledPrinterOptions.FirstOrDefault();
+
+        if (SelectedInstalledPrinterOption is not null && string.IsNullOrWhiteSpace(PrinterQueueName))
+        {
+            PrinterQueueName = SelectedInstalledPrinterOption.Name;
+        }
+    }
+
+    private static InstalledPrinterOption ToOption(InstalledPrinterInfo printer)
+    {
+        var defaultSuffix = printer.IsDefault ? ", predeterminada" : string.Empty;
+        var label = $"{printer.Name} ({printer.ConnectorHint.DisplayName()}{defaultSuffix})";
+        return new InstalledPrinterOption(printer.Name, label, printer.ConnectorHint, true);
+    }
+
+    private static string? FirstNonEmpty(params string?[] values)
+    {
+        foreach (var value in values)
+        {
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                return value.Trim();
+            }
+        }
+
+        return null;
     }
 
     private void SetStatus(string message, bool isPositive)
     {
         StatusText = message;
         StatusForeground = isPositive ? "#1F6F43" : "#B42318";
+    }
+
+    private void SetPrinterStatus(string message, bool isPositive)
+    {
+        PrinterStatusText = message;
+        PrinterStatusForeground = isPositive ? "#1F6F43" : "#B42318";
     }
 }
