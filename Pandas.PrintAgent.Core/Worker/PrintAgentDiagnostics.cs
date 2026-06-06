@@ -9,13 +9,13 @@ public static class PrintAgentDiagnostics
 {
     public static async Task<PrintResult> RunTestPrintAsync(AgentSettings settings, IPrinterService printer, IAgentLogger logger, CancellationToken cancellationToken)
     {
-        var target = new PrinterTarget(settings.PrinterHost, settings.PrinterPort);
+        var target = PrinterService.TargetForSettings(settings);
         var payload = PrinterService.BuildTestPayload();
-        logger.Log($"Enviando prueba directa al POS target={target.Host}:{target.Port} {DescribePayload(payload)}");
+        logger.Log($"Enviando prueba directa al POS connector={settings.PrinterConnectorType.DisplayName()} target={target.Description} {DescribePayload(payload)}");
 
         var result = await printer.SendPayloadAsync(payload, target, settings, cancellationToken);
         logger.Log($"Prueba enviada: bytes={result.Bytes} connectMs={result.ConnectMs} writeMs={result.WriteMs} totalMs={result.TotalMs}");
-        logger.Log("Si no salio papel con esta prueba, el problema esta entre esta PC y el POS: IP/puerto, cola interna, papel, tapa, firmware o modo de red de la impresora.");
+        logger.Log("Si no salio papel con esta prueba, revisa el conector configurado, la cola instalada, IP/puerto, papel, tapa, firmware o modo de red de la impresora.");
         return result;
     }
 

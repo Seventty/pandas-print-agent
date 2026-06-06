@@ -1,3 +1,5 @@
+using Pandas.PrintAgent.Core.Printing;
+
 namespace Pandas.PrintAgent.Core.Settings;
 
 public sealed record AgentSettings
@@ -8,8 +10,10 @@ public sealed record AgentSettings
     public string ApiPrefix { get; init; } = "api";
     public string AgentToken { get; init; } = DefaultToken;
     public int PollIntervalMs { get; init; } = 2000;
+    public PrinterConnectorType PrinterConnectorType { get; init; } = PrinterConnectorType.NetworkTcp;
     public string PrinterHost { get; init; } = "10.0.0.28";
     public int PrinterPort { get; init; } = 9100;
+    public string PrinterQueueName { get; init; } = string.Empty;
     public int PrinterTimeoutMs { get; init; } = 5000;
     public bool UseJobPrinterTarget { get; init; }
     public string LogFilePath { get; init; } = "logs/print-agent.log";
@@ -31,13 +35,17 @@ public sealed record AgentSettings
         {
             throw new InvalidOperationException("BackendBaseUrl debe ser una URL absoluta, por ejemplo https://backend.example.com.");
         }
-        if (string.IsNullOrWhiteSpace(PrinterHost))
+        if (PrinterConnectorType == PrinterConnectorType.NetworkTcp && string.IsNullOrWhiteSpace(PrinterHost))
         {
             throw new InvalidOperationException("PrinterHost no puede estar vacio.");
         }
-        if (PrinterPort <= 0)
+        if (PrinterConnectorType == PrinterConnectorType.NetworkTcp && PrinterPort <= 0)
         {
             throw new InvalidOperationException("PrinterPort debe ser mayor que cero.");
+        }
+        if (PrinterConnectorType != PrinterConnectorType.NetworkTcp && string.IsNullOrWhiteSpace(PrinterQueueName))
+        {
+            throw new InvalidOperationException("PrinterQueueName no puede estar vacio para conectores USB o Bluetooth.");
         }
         if (PollIntervalMs <= 0)
         {

@@ -178,7 +178,7 @@ public sealed class PrintAgentWorker : IAsyncDisposable
         _lastJob = $"{job.DocumentType} {job.DocumentNumber} (job {job.Id})";
 
         Report(AgentWorkerState.Printing, $"Imprimiendo {_lastJob}", lastJob: _lastJob);
-        _logger.Log($"Imprimiendo {job.DocumentType} {job.DocumentNumber} (job {job.Id}, intento {job.Attempt}/{job.MaxAttempts}) target={target.Host}:{target.Port} {PrintAgentDiagnostics.DescribePayload(payload)}");
+        _logger.Log($"Imprimiendo {job.DocumentType} {job.DocumentNumber} (job {job.Id}, intento {job.Attempt}/{job.MaxAttempts}) connector={settings.PrinterConnectorType.DisplayName()} target={target.Description} {PrintAgentDiagnostics.DescribePayload(payload)}");
         PrintAgentDiagnostics.SavePayloadIfEnabled(_baseDirectory, settings, job, payload, _logger);
 
         try
@@ -201,7 +201,15 @@ public sealed class PrintAgentWorker : IAsyncDisposable
     private void LogStartup(AgentSettings settings)
     {
         _logger.Log($"Backend: {settings.BackendBaseUrl}");
-        _logger.Log($"POS: {settings.PrinterHost}:{settings.PrinterPort}");
+        _logger.Log($"Connector: {settings.PrinterConnectorType.DisplayName()}");
+        if (settings.PrinterConnectorType == PrinterConnectorType.NetworkTcp)
+        {
+            _logger.Log($"Printer: {settings.PrinterHost}:{settings.PrinterPort}");
+        }
+        else
+        {
+            _logger.Log($"Printer queue: {settings.PrinterQueueName}");
+        }
         _logger.Log($"UseJobPrinterTarget: {settings.UseJobPrinterTarget}");
         _logger.Log($"Log: {AgentPaths.ResolveAgentPath(_baseDirectory, settings.LogFilePath)}");
         if (settings.SavePayloads)

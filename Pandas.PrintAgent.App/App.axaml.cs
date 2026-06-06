@@ -35,9 +35,10 @@ public partial class App : Application
             var settingsService = new AgentSettingsService(baseDirectory, tokenStore);
             var backendStatus = new BackendStatusService();
             var printer = new PrinterService();
+            var printerDiscovery = new InstalledPrinterDiscoveryService();
             var logger = new FileAgentLogger(baseDirectory, null, writeToConsole: false);
             var worker = new PrintAgentWorker(baseDirectory, printer, logger);
-            var viewModel = new MainWindowViewModel(baseDirectory, settingsService, backendStatus, printer, logger, worker);
+            var viewModel = new MainWindowViewModel(baseDirectory, settingsService, backendStatus, printer, printerDiscovery, logger, worker);
             var window = new MainWindow
             {
                 DataContext = viewModel,
@@ -88,7 +89,14 @@ public partial class App : Application
         };
         menu.Items.Add(reloadItem);
 
-        var testPrinterItem = new NativeMenuItem { Header = "Probar impresora" };
+        var testPrinterItem = new NativeMenuItem { Header = viewModel.TestPrinterButtonText };
+        viewModel.PropertyChanged += (_, eventArgs) =>
+        {
+            if (eventArgs.PropertyName == nameof(MainWindowViewModel.TestPrinterButtonText))
+            {
+                testPrinterItem.Header = viewModel.TestPrinterButtonText;
+            }
+        };
         testPrinterItem.Click += async (_, _) =>
         {
             if (viewModel.TestPrinterCommand.CanExecute(null))

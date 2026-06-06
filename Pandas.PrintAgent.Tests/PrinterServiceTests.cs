@@ -31,6 +31,41 @@ public sealed class PrinterServiceTests
     }
 
     [Fact]
+    public void TargetForSettingsUsesInstalledPrinterQueueForUsb()
+    {
+        var settings = new AgentSettings
+        {
+            PrinterConnectorType = PrinterConnectorType.Usb,
+            PrinterQueueName = "POS USB",
+        };
+
+        var target = PrinterService.TargetForSettings(settings);
+
+        Assert.Equal(PrinterConnectorType.Usb, target.ConnectorType);
+        Assert.Equal("POS USB", target.QueueName);
+        Assert.Equal("USB queue=\"POS USB\"", target.Description);
+    }
+
+    [Fact]
+    public void TargetForJobIgnoresJobNetworkTargetForInstalledPrinter()
+    {
+        var settings = new AgentSettings
+        {
+            PrinterConnectorType = PrinterConnectorType.Bluetooth,
+            PrinterQueueName = "POS Bluetooth",
+            UseJobPrinterTarget = true,
+        };
+        var job = Job("192.168.1.50", 9200);
+
+        var target = PrinterService.TargetForJob(job, settings);
+
+        Assert.Equal(PrinterConnectorType.Bluetooth, target.ConnectorType);
+        Assert.Equal("POS Bluetooth", target.QueueName);
+        Assert.Equal(string.Empty, target.Host);
+        Assert.Equal(0, target.Port);
+    }
+
+    [Fact]
     public void TestPayloadKeepsEscPosHeader()
     {
         var payload = PrinterService.BuildTestPayload();

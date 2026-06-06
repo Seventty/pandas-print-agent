@@ -1,6 +1,6 @@
 # PANDAS Print Agent
 
-PANDAS Print Agent es una aplicacion local de escritorio para imprimir tickets POS desde un backend remoto hacia una impresora fisica ESC/POS dentro de una red local.
+PANDAS Print Agent es una aplicacion local de escritorio para imprimir tickets POS desde un backend remoto hacia una impresora fisica ESC/POS dentro de una red local o una impresora instalada en el sistema.
 
 PANDAS es generico por diseno. No esta ligado a un backend, ERP, tienda o proveedor especifico. Para funcionar solo necesita que el backend implemente el contrato HTTP esperado y entregue payloads ESC/POS listos para imprimir. El token de agente es opcional: puede usarse en produccion, pero puede quedar vacio para pruebas o backends que no exigen firma por token.
 
@@ -23,7 +23,7 @@ PANDAS es generico por diseno. No esta ligado a un backend, ERP, tienda o provee
 
 ## Que Problema Resuelve
 
-Un backend en la nube normalmente no puede conectarse directamente a impresoras que viven dentro de una red privada. Las impresoras POS suelen tener IPs locales, por ejemplo `10.0.0.28`, y reciben bytes ESC/POS por TCP raw en el puerto `9100`.
+Un backend en la nube normalmente no puede conectarse directamente a impresoras que viven dentro de una red privada o conectadas fisicamente a una computadora. Las impresoras POS de red suelen tener IPs locales, por ejemplo `10.0.0.28`, y reciben bytes ESC/POS por TCP raw en el puerto `9100`; las USB/Bluetooth normalmente se exponen como una impresora instalada del sistema operativo.
 
 PANDAS resuelve esto ejecutandose en una computadora que si esta dentro de la red local de la impresora.
 
@@ -33,7 +33,7 @@ Flujo basico:
 2. El backend crea un trabajo de impresion en cola.
 3. PANDAS consulta el backend desde la maquina local.
 4. PANDAS recibe el trabajo y decodifica el payload ESC/POS.
-5. PANDAS envia los bytes a la impresora POS por TCP.
+5. PANDAS envia los bytes a la impresora POS por el conector configurado.
 6. PANDAS informa al backend si el trabajo fue completado o fallo.
 
 PANDAS sirve para:
@@ -58,7 +58,7 @@ flowchart LR
     Agent -->|Polling cada PollIntervalMs| Backend
     Backend -->|Entrega siguiente trabajo| Agent
     Agent -->|Decodifica payloadBase64| Payload[Payload ESC/POS]
-    Payload -->|TCP raw :9100| Printer[Impresora POS local]
+    Payload -->|TCP raw o cola instalada| Printer[Impresora POS local]
 
     Agent -->|complete| Backend
     Agent -->|fail + error| Backend
@@ -89,7 +89,7 @@ sequenceDiagram
             Backend-->>Agent: PrintJob
             Agent->>Agent: Decodifica payloadBase64
             Agent->>Agent: Selecciona impresora destino
-            Agent->>POS: Envia bytes ESC/POS por TCP
+            Agent->>POS: Envia bytes ESC/POS por conector configurado
 
             alt Impresion exitosa
                 Agent->>Backend: POST /api/print-agent/jobs/{id}/complete
@@ -154,7 +154,9 @@ La app permite configurar:
 - Backend URL.
 - API prefix.
 - Token del agente, opcional si el backend no exige autenticacion por token.
-- Host y puerto de impresora.
+- Conector de impresora: `WiFi/Ethernet (TCP)`, `USB` o `Bluetooth`.
+- Host y puerto de impresora para red TCP.
+- Dropdown de impresoras instaladas para USB/Bluetooth.
 - Intervalo de polling.
 - Timeout de impresora.
 - Uso opcional de `targetHost` y `targetPort` enviados por el backend.
@@ -168,7 +170,7 @@ Acciones principales:
 | `Guardar` | Guarda settings, guarda o limpia el token seguro, recarga el worker y valida status. |
 | `Reload` | Reinicia el worker usando los valores actuales de la UI. |
 | `Status` | Llama el endpoint de status sin consumir trabajos. |
-| `Probar impresora` | Envia una prueba ESC/POS directa a la impresora configurada. |
+| `Probar WiFi/Ethernet`, `Probar USB` o `Probar Bluetooth` | Envia una prueba ESC/POS directa al conector configurado. |
 | `Abrir logs` | Abre el archivo o carpeta de logs. |
 | `Salir` | Detiene el worker y cierra la app. |
 
@@ -185,8 +187,10 @@ Cerrar la ventana solo la oculta. El agente sigue corriendo desde la bandeja/men
   "BackendBaseUrl": "https://backend.example.com",
   "ApiPrefix": "api",
   "PollIntervalMs": 2000,
+  "PrinterConnectorType": "NetworkTcp",
   "PrinterHost": "10.0.0.28",
   "PrinterPort": 9100,
+  "PrinterQueueName": "",
   "PrinterTimeoutMs": 5000,
   "UseJobPrinterTarget": false,
   "LogFilePath": "logs/print-agent.log",
@@ -194,6 +198,20 @@ Cerrar la ventana solo la oculta. El agente sigue corriendo desde la bandeja/men
   "PayloadDumpDirectory": "logs/payloads"
 }
 ```
+
+### Conectores de impresora
+
+PANDAS soporta tres opciones en la UI:
+
+| Opcion | Como funciona | Configuracion requerida |
+| --- | --- | --- |
+| `WiFi/Ethernet (TCP)` | Usa socket TCP raw hacia la impresora. WiFi y Ethernet son el mismo mecanismo para PANDAS. | `PrinterHost` y `PrinterPort`. |
+| `USB` | Envia ESC/POS raw a una impresora instalada en el sistema operativo. | Seleccionar una impresora instalada; se guarda como `PrinterQueueName`. |
+| `Bluetooth` | Envia ESC/POS raw a una impresora Bluetooth instalada/emparejada en el sistema operativo. | Seleccionar una impresora instalada; se guarda como `PrinterQueueName`. |
+
+Para USB y Bluetooth, primero instala o empareja la impresora en el sistema operativo. PANDAS muestra un dropdown con las impresoras instaladas detectadas para evitar que el usuario tenga que digitar el nombre manualmente. Si conectas o emparejas una impresora mientras PANDAS esta abierto, usa `Refrescar`.
+
+En Windows, PANDAS lista y envia datos RAW a impresoras instaladas usando Winspool. En macOS y Linux, PANDAS lista impresoras con CUPS (`lpstat`) y envia datos RAW con `lp -o raw -d <PrinterQueueName>`.
 
 ### Token seguro
 
@@ -222,8 +240,10 @@ Las variables de entorno pueden sobrescribir `appsettings.json`.
 | `PANDAS_BACKEND_BASE_URL` | URL base del backend. |
 | `PANDAS_API_PREFIX` | Prefijo de API, normalmente `api`. |
 | `PANDAS_PRINT_AGENT_TOKEN` | Token del agente. Util para CLI/automatizacion. |
+| `PANDAS_PRINTER_CONNECTOR` | Conector: `NetworkTcp`, `Usb` o `Bluetooth`. Tambien acepta `tcp`, `wifi`, `ethernet` y `bt`. |
 | `PANDAS_PRINTER_HOST` | IP o hostname de la impresora. |
 | `PANDAS_PRINTER_PORT` | Puerto TCP de la impresora. Normalmente `9100`. |
+| `PANDAS_PRINTER_QUEUE_NAME` | Nombre de la impresora instalada para USB/Bluetooth. La UI lo llena al seleccionar desde el dropdown. |
 | `PANDAS_POLL_INTERVAL_MS` | Intervalo de polling en milisegundos. |
 | `PANDAS_PRINTER_TIMEOUT_MS` | Timeout del socket de impresora en milisegundos. |
 | `PANDAS_USE_JOB_PRINTER_TARGET` | Usa `targetHost` y `targetPort` del trabajo cuando existen. |
@@ -356,6 +376,8 @@ PANDAS espera que el endpoint `jobs/next` devuelva esta forma:
 
 Si `UseJobPrinterTarget` esta desactivado en PANDAS, se usan `PrinterHost` y `PrinterPort` locales aunque el trabajo incluya `targetHost` y `targetPort`.
 
+`UseJobPrinterTarget` solo aplica al conector `WiFi/Ethernet (TCP)`. En `USB` y `Bluetooth`, PANDAS siempre usa la impresora instalada configurada en `PrinterQueueName`.
+
 ## Requisitos De Cola En El Backend
 
 El backend debe tratar los trabajos como una cola con transiciones claras.
@@ -387,7 +409,7 @@ Requisitos:
 - .NET SDK 8 o superior.
 - PowerShell para scripts de publicacion.
 - Backend compatible para pruebas end-to-end.
-- Impresora POS de red o listener TCP para pruebas de impresion.
+- Impresora POS de red, impresora USB/Bluetooth instalada, o listener TCP para pruebas de impresion.
 
 Desde la raiz del repositorio:
 
@@ -542,7 +564,7 @@ Flujo tipico de instalacion:
 4. Configurar `Backend URL`, `API prefix`, token si aplica e impresora.
 5. Presionar `Guardar`.
 6. Confirmar que el status quede conectado.
-7. Presionar `Probar impresora`.
+7. Presionar el boton dinamico `Probar WiFi/Ethernet`, `Probar USB` o `Probar Bluetooth`.
 8. Dejar la app corriendo en bandeja/menu bar.
 9. Configurar autostart si aplica.
 
