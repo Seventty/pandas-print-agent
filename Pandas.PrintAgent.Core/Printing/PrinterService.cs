@@ -150,7 +150,7 @@ public sealed class PrinterService : IPrinterService
         payload.AddRange(EncodeEscPosText(
             "Prueba directa sin backend\n" +
             $"{now}\n" +
-            "Si ves este papel, el socket 9100 funciona.\n" +
+            "Si ves este papel, la conexion con tu impresora funciona.\n" +
             "\n\n\n"));
         payload.AddRange([0x1d, (byte)'V', 0x00]);
 
