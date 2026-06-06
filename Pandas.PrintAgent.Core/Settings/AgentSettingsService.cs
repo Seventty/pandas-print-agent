@@ -25,21 +25,21 @@ public sealed class AgentSettingsService
         var fileSettings = await LoadFileAsync(cancellationToken);
         var settings = fileSettings.ToSettings();
         var storedToken = await ReadStoredTokenAsync(cancellationToken);
-        var environmentToken = Environment.GetEnvironmentVariable("PALEDEN_PRINT_AGENT_TOKEN");
+        var environmentToken = Environment.GetEnvironmentVariable("PANDAS_PRINT_AGENT_TOKEN");
 
         settings = settings with
         {
-            BackendBaseUrl = Environment.GetEnvironmentVariable("PALEDEN_BACKEND_BASE_URL") ?? settings.BackendBaseUrl,
-            ApiPrefix = Environment.GetEnvironmentVariable("PALEDEN_API_PREFIX") ?? settings.ApiPrefix,
+            BackendBaseUrl = Environment.GetEnvironmentVariable("PANDAS_BACKEND_BASE_URL") ?? settings.BackendBaseUrl,
+            ApiPrefix = Environment.GetEnvironmentVariable("PANDAS_API_PREFIX") ?? settings.ApiPrefix,
             AgentToken = FirstNonEmpty(environmentToken, storedToken, fileSettings.AgentToken, settings.AgentToken),
-            PrinterHost = Environment.GetEnvironmentVariable("PALEDEN_PRINTER_HOST") ?? settings.PrinterHost,
-            PrinterPort = IntEnv("PALEDEN_PRINTER_PORT", settings.PrinterPort),
-            PollIntervalMs = IntEnv("PALEDEN_POLL_INTERVAL_MS", settings.PollIntervalMs),
-            PrinterTimeoutMs = IntEnv("PALEDEN_PRINTER_TIMEOUT_MS", settings.PrinterTimeoutMs),
-            UseJobPrinterTarget = BoolEnv("PALEDEN_USE_JOB_PRINTER_TARGET", settings.UseJobPrinterTarget),
-            LogFilePath = Environment.GetEnvironmentVariable("PALEDEN_PRINT_AGENT_LOG") ?? settings.LogFilePath,
-            SavePayloads = BoolEnv("PALEDEN_SAVE_PAYLOADS", settings.SavePayloads),
-            PayloadDumpDirectory = Environment.GetEnvironmentVariable("PALEDEN_PAYLOAD_DUMP_DIRECTORY") ?? settings.PayloadDumpDirectory,
+            PrinterHost = Environment.GetEnvironmentVariable("PANDAS_PRINTER_HOST") ?? settings.PrinterHost,
+            PrinterPort = IntEnv("PANDAS_PRINTER_PORT", settings.PrinterPort),
+            PollIntervalMs = IntEnv("PANDAS_POLL_INTERVAL_MS", settings.PollIntervalMs),
+            PrinterTimeoutMs = IntEnv("PANDAS_PRINTER_TIMEOUT_MS", settings.PrinterTimeoutMs),
+            UseJobPrinterTarget = BoolEnv("PANDAS_USE_JOB_PRINTER_TARGET", settings.UseJobPrinterTarget),
+            LogFilePath = Environment.GetEnvironmentVariable("PANDAS_PRINT_AGENT_LOG") ?? settings.LogFilePath,
+            SavePayloads = BoolEnv("PANDAS_SAVE_PAYLOADS", settings.SavePayloads),
+            PayloadDumpDirectory = Environment.GetEnvironmentVariable("PANDAS_PAYLOAD_DUMP_DIRECTORY") ?? settings.PayloadDumpDirectory,
         };
 
         settings.Validate();
@@ -50,15 +50,27 @@ public sealed class AgentSettingsService
     {
         settings.Validate();
 
-        if (!string.IsNullOrWhiteSpace(tokenToSave))
+        if (tokenToSave is not null)
         {
-            var availability = await _tokenStore.CheckAvailabilityAsync(cancellationToken);
-            if (!availability.IsAvailable)
+            var trimmedToken = tokenToSave.Trim();
+            if (!string.IsNullOrWhiteSpace(trimmedToken))
             {
-                throw new TokenStoreUnavailableException(availability.Message);
-            }
+                var availability = await _tokenStore.CheckAvailabilityAsync(cancellationToken);
+                if (!availability.IsAvailable)
+                {
+                    throw new TokenStoreUnavailableException(availability.Message);
+                }
 
-            await _tokenStore.SaveTokenAsync(tokenToSave.Trim(), cancellationToken);
+                await _tokenStore.SaveTokenAsync(trimmedToken, cancellationToken);
+            }
+            else
+            {
+                var availability = await _tokenStore.CheckAvailabilityAsync(cancellationToken);
+                if (availability.IsAvailable)
+                {
+                    await _tokenStore.DeleteTokenAsync(cancellationToken);
+                }
+            }
         }
 
         Directory.CreateDirectory(_baseDirectory);

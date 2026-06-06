@@ -64,7 +64,7 @@
                     Background="#FFFFFF"
                     BorderBrush="#D9E0E7"
                     BorderThickness="1">
-                <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="6">
+                <Grid RowDefinitions="Auto,Auto" RowSpacing="6">
                     <StackPanel Grid.Row="0" Grid.Column="0" Spacing="0">
                         <TextBlock Text="PANDAS"
                                    FontSize="28"
@@ -79,27 +79,23 @@
                                TextWrapping="Wrap"
                                Foreground="{Binding StatusForeground}"
                                FontWeight="SemiBold"/>
-                    <TextBlock Grid.Row="2"
-                               Text="{Binding TokenStorageStatus}"
-                               TextWrapping="Wrap"
-                               Foreground="#536170"/>
                 </Grid>
             </Border>
 
             <Grid Grid.Row="1" ColumnDefinitions="180,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="12" ColumnSpacing="12">
                 <TextBlock Grid.Row="0" Grid.Column="0" Text="Backend URL" VerticalAlignment="Center"/>
-                <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding BackendBaseUrl}" PlaceholderText="https://paleden-backend.example.com"/>
+                <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding BackendBaseUrl}" PlaceholderText="https://backend.example.com"/>
 
                 <TextBlock Grid.Row="1" Grid.Column="0" Text="API prefix" VerticalAlignment="Center"/>
                 <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding ApiPrefix}" PlaceholderText="api"/>
 
-                <TextBlock Grid.Row="2" Grid.Column="0" Text="Token" VerticalAlignment="Center"/>
+                <TextBlock Grid.Row="2" Grid.Column="0" Text="Token (opcional)" VerticalAlignment="Center"/>
                 <Grid Grid.Row="2" Grid.Column="1" ColumnDefinitions="*,42">
                     <TextBox Grid.Column="0"
                              Grid.ColumnSpan="2"
                              Text="{Binding AgentToken}"
                              PasswordChar="{Binding TokenPasswordChar}"
-                             PlaceholderText="X-Print-Agent-Token"
+                             PlaceholderText="Dejar vacio si el backend no exige token"
                              Padding="10,6,44,6"/>
                     <Button Grid.Column="1"
                             Command="{Binding ToggleTokenVisibilityCommand}"
@@ -156,7 +152,7 @@
                 <CheckBox Grid.Row="5" Grid.Column="1" IsChecked="{Binding SavePayloads}" Content="Guardar payload binario de cada trabajo"/>
             </Grid>
 
-            <Grid Grid.Row="3" ColumnDefinitions="180,*" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="12" ColumnSpacing="12">
+            <Grid Grid.Row="3" ColumnDefinitions="180,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="12" ColumnSpacing="12">
                 <TextBlock Grid.Row="0" Grid.Column="0" Text="Log file" VerticalAlignment="Center"/>
                 <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding LogFilePath}" PlaceholderText="logs/print-agent.log"/>
 
@@ -165,9 +161,6 @@
 
                 <TextBlock Grid.Row="2" Grid.Column="0" Text="Ultimo trabajo" VerticalAlignment="Center"/>
                 <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding LastJob}" TextWrapping="Wrap" Foreground="#27384A"/>
-
-                <TextBlock Grid.Row="3" Grid.Column="0" Text="Ultimo error" VerticalAlignment="Center"/>
-                <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding LastError}" TextWrapping="Wrap" Foreground="#8A2C2C"/>
             </Grid>
 
             <Grid Grid.Row="4" RowDefinitions="Auto,Auto" RowSpacing="12">

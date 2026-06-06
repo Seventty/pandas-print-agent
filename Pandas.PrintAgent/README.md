@@ -1,6 +1,6 @@
 # PANDAS Print Agent
 
-Agente local para imprimir tickets POS desde un backend Paleden en produccion.
+Agente local para imprimir tickets POS desde un backend compatible en produccion.
 
 ## Flujo
 
@@ -15,14 +15,14 @@ Agente local para imprimir tickets POS desde un backend Paleden en produccion.
 El flujo recomendado es `Pandas.PrintAgent.App`, una app Avalonia con icono en bandeja/menu bar. La ventana permite editar:
 
 - Backend URL y API prefix.
-- Token del agente.
+- Token del agente, opcional si el backend no exige autenticacion por token.
 - Host, puerto, timeout e intervalo de polling.
 - Uso opcional de `targetHost/targetPort` del trabajo.
 - Logs y payload dumps.
 
 Botones disponibles:
 
-- `Guardar`: guarda settings no sensibles en `appsettings.json` y token en almacenamiento seguro.
+- `Guardar`: guarda settings no sensibles en `appsettings.json`, guarda o limpia el token seguro y recarga el worker.
 - `Reload`: reinicia el worker interno sin relanzar la app.
 - `Status`: llama `GET /api/print-agent/status` sin consumir trabajos.
 - `Probar impresora`: envia una prueba ESC/POS directa al POS.
@@ -33,7 +33,9 @@ Cerrar la ventana solo la oculta; el agente sigue corriendo en segundo plano des
 
 ## Token seguro
 
-`AgentToken` ya no se guarda en `appsettings.json`. La GUI lo guarda en:
+`AgentToken` es opcional. Si se deja vacio, PANDAS no envia el header `X-Print-Agent-Token`.
+
+Cuando se configura un token, la GUI no lo guarda en `appsettings.json`; lo guarda en:
 
 - Windows: Credential Manager.
 - macOS: Keychain.
@@ -41,7 +43,7 @@ Cerrar la ventana solo la oculta; el agente sigue corriendo en segundo plano des
 
 En Linux instala `libsecret-tools` si la app indica que `secret-tool` no esta disponible. No hay fallback automatico a texto plano.
 
-Para automatizacion/CLI se puede usar `PALEDEN_PRINT_AGENT_TOKEN`. El agente tambien puede leer un `AgentToken` legado si existe en un `appsettings.json` anterior, pero al guardar desde la GUI no se vuelve a escribir.
+Para automatizacion/CLI se puede usar `PANDAS_PRINT_AGENT_TOKEN`. El agente tambien puede leer un `AgentToken` legado si existe en un `appsettings.json` anterior, pero al guardar desde la GUI no se vuelve a escribir. Si guardas con el token vacio, PANDAS limpia el token guardado previamente.
 
 ## Configuracion
 
@@ -49,7 +51,7 @@ Para automatizacion/CLI se puede usar `PALEDEN_PRINT_AGENT_TOKEN`. El agente tam
 
 ```json
 {
-  "BackendBaseUrl": "https://tu-backend-paleden.example.com",
+  "BackendBaseUrl": "https://backend.example.com",
   "ApiPrefix": "api",
   "PollIntervalMs": 2000,
   "PrinterHost": "10.0.0.28",
@@ -62,12 +64,14 @@ Para automatizacion/CLI se puede usar `PALEDEN_PRINT_AGENT_TOKEN`. El agente tam
 }
 ```
 
-En el backend de produccion configura:
+Si el backend exige token, configura:
 
 ```env
 PRINT_DELIVERY_MODE=queue
 PRINT_AGENT_TOKEN=mismo-token-que-el-agente
 ```
+
+Si el backend no exige token, deja el campo de token vacio en PANDAS.
 
 ## Backend status
 
@@ -77,6 +81,8 @@ El backend expone:
 GET /api/print-agent/status
 X-Print-Agent-Token: <token>
 ```
+
+El header `X-Print-Agent-Token` solo se envia cuando hay token configurado.
 
 Respuesta esperada:
 

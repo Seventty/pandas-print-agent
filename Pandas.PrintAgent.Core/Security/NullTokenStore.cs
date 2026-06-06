@@ -23,4 +23,9 @@ public sealed class NullTokenStore : ITokenStore
     {
         throw new TokenStoreUnavailableException(_message);
     }
+
+    public Task DeleteTokenAsync(CancellationToken cancellationToken = default)
+    {
+        throw new TokenStoreUnavailableException(_message);
+    }
 }

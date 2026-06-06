@@ -44,6 +44,12 @@ internal sealed class InMemoryTokenStore : ITokenStore
         _token = token;
         return Task.CompletedTask;
     }
+
+    public Task DeleteTokenAsync(CancellationToken cancellationToken = default)
+    {
+        _token = null;
+        return Task.CompletedTask;
+    }
 }
 
 internal sealed class UnavailableTokenStore : ITokenStore
@@ -59,6 +65,11 @@ internal sealed class UnavailableTokenStore : ITokenStore
     }
 
     public Task SaveTokenAsync(string token, CancellationToken cancellationToken = default)
+    {
+        throw new TokenStoreUnavailableException("No disponible");
+    }
+
+    public Task DeleteTokenAsync(CancellationToken cancellationToken = default)
     {
         throw new TokenStoreUnavailableException("No disponible");
     }

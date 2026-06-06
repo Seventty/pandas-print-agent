@@ -37,7 +37,7 @@ public partial class App : Application
             var printer = new PrinterService();
             var logger = new FileAgentLogger(baseDirectory, null, writeToConsole: false);
             var worker = new PrintAgentWorker(baseDirectory, printer, logger);
-            var viewModel = new MainWindowViewModel(baseDirectory, settingsService, tokenStore, backendStatus, printer, logger, worker);
+            var viewModel = new MainWindowViewModel(baseDirectory, settingsService, backendStatus, printer, logger, worker);
             var window = new MainWindow
             {
                 DataContext = viewModel,

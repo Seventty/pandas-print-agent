@@ -34,14 +34,35 @@ public sealed class PrinterServiceTests
     public void TestPayloadKeepsEscPosHeader()
     {
         var payload = PrinterService.BuildTestPayload();
+        var text = Encoding.ASCII.GetString(payload);
 
         Assert.Equal(0x1b, payload[0]);
         Assert.Equal((byte)'@', payload[1]);
-        Assert.Contains("PALEDEN TEST POS", Encoding.ASCII.GetString(payload));
+        Assert.True(ContainsSequence(payload, [0x1b, (byte)'t', 0x00]));
+        Assert.True(ContainsSequence(payload, [0x1b, (byte)'a', 0x01]));
+        Assert.True(ContainsSequence(payload, [0x1b, (byte)'E', 0x01]));
+        Assert.Contains((byte)0xdb, payload);
+        Assert.Contains((byte)0xdc, payload);
+        Assert.Contains((byte)0xdf, payload);
+        Assert.Contains("TEST POD", text);
+        Assert.DoesNotContain("PANDAS TEST POS", text);
     }
 
     private static PrintJob Job(string targetHost, int targetPort)
     {
         return new PrintJob("job-1", "ORDER", "0001", Convert.ToBase64String([1, 2, 3]), targetHost, targetPort, 1, 5);
+    }
+
+    private static bool ContainsSequence(byte[] payload, ReadOnlySpan<byte> sequence)
+    {
+        for (var index = 0; index <= payload.Length - sequence.Length; index++)
+        {
+            if (payload.AsSpan(index, sequence.Length).SequenceEqual(sequence))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

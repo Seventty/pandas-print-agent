@@ -114,12 +114,6 @@ public sealed class PrintAgentWorker : IAsyncDisposable
             _logger.Log("PANDAS Print Agent");
             LogStartup(settings);
 
-            if (settings.AgentToken == AgentSettings.DefaultToken)
-            {
-                _logger.Log("ADVERTENCIA: estas usando el token por defecto. Cambialo en produccion.");
-                _logger.Log(string.Empty);
-            }
-
             while (!cancellationToken.IsCancellationRequested)
             {
                 await PollOnceAsync(settings, apiClient, cancellationToken);

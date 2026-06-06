@@ -59,7 +59,8 @@ public sealed class SecureTokenStore : ITokenStore
     {
         if (string.IsNullOrWhiteSpace(token))
         {
-            throw new InvalidOperationException("El token no puede estar vacio.");
+            await DeleteTokenAsync(cancellationToken);
+            return;
         }
 
         await RequireAvailableAsync(cancellationToken);
@@ -86,6 +87,29 @@ public sealed class SecureTokenStore : ITokenStore
             {
                 throw new TokenStoreUnavailableException($"No se pudo guardar el token en Linux Secret Service: {result.Error.Trim()}");
             }
+            return;
+        }
+
+        throw new TokenStoreUnavailableException("Sistema operativo no soportado para almacenamiento seguro del token.");
+    }
+
+    public async Task DeleteTokenAsync(CancellationToken cancellationToken = default)
+    {
+        await RequireAvailableAsync(cancellationToken);
+
+        if (OperatingSystem.IsWindows())
+        {
+            WindowsCredentialStore.Delete(TargetName);
+            return;
+        }
+        if (OperatingSystem.IsMacOS())
+        {
+            await RunProcessAsync("/usr/bin/security", $"delete-generic-password -s \"{TargetName}\" -a \"{AccountName}\"", null, cancellationToken);
+            return;
+        }
+        if (OperatingSystem.IsLinux())
+        {
+            await RunProcessAsync("secret-tool", $"clear service \"{TargetName}\" account \"{AccountName}\"", null, cancellationToken);
             return;
         }
 
@@ -150,6 +174,7 @@ public sealed class SecureTokenStore : ITokenStore
     {
         private const int CredTypeGeneric = 1;
         private const int CredPersistLocalMachine = 2;
+        private const int ErrorNotFound = 1168;
 
         public static string? Read(string targetName)
         {
@@ -204,11 +229,26 @@ public sealed class SecureTokenStore : ITokenStore
             }
         }
 
+        public static void Delete(string targetName)
+        {
+            if (!CredDelete(targetName, CredTypeGeneric, 0))
+            {
+                var error = Marshal.GetLastWin32Error();
+                if (error != ErrorNotFound)
+                {
+                    throw new TokenStoreUnavailableException($"No se pudo borrar el token en Windows Credential Manager. Win32Error={error}");
+                }
+            }
+        }
+
         [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
         private static extern bool CredRead(string target, int type, int reservedFlag, out IntPtr credentialPointer);
 
         [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
         private static extern bool CredWrite(ref Credential userCredential, int flags);
+
+        [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern bool CredDelete(string target, int type, int flags);
 
         [DllImport("advapi32.dll", SetLastError = true)]
         private static extern void CredFree(IntPtr credentialPointer);

@@ -5,6 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AssemblyName>Pandas.PrintAgent</AssemblyName>
+    <ApplicationIcon>..\Pandas.PrintAgent.App\Assets\pandas-logo.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>

@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.Net.Sockets;
-using System.Text;
 using Pandas.PrintAgent.Core.Settings;
 
 namespace Pandas.PrintAgent.Core.Printing;
@@ -39,18 +38,47 @@ public sealed class PrinterService : IPrinterService
     public static byte[] BuildTestPayload()
     {
         var now = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
-        var payload =
-            "\x1b@" +
-            "\x1ba\x01" +
-            "\x1bE\x01" +
-            "PALEDEN TEST POS\n" +
-            "\x1bE\x00" +
+        var payload = new List<byte>();
+
+        payload.AddRange([0x1b, (byte)'@']);
+        payload.AddRange([0x1b, (byte)'t', 0x00]);
+        payload.AddRange([0x1b, (byte)'a', 0x01]);
+        payload.AddRange([0x1b, (byte)'E', 0x01]);
+        payload.AddRange(EncodeEscPosText(
+            "█████▄ ▄████▄ ███  ██ ████▄  ▄████▄ ▄█████\n" +
+            "██▄▄█▀ ██▄▄██ ██ ▀▄██ ██  ██ ██▄▄██ ▀▀▀▄▄▄\n" +
+            "██     ██  ██ ██   ██ ████▀  ██  ██ █████▀\n" +
+            "TEST POD\n"));
+        payload.AddRange([0x1b, (byte)'E', 0x00]);
+        payload.AddRange(EncodeEscPosText(
             "Prueba directa sin backend\n" +
             $"{now}\n" +
             "Si ves este papel, el socket 9100 funciona.\n" +
-            "\n\n\n" +
-            "\x1dV\x00";
+            "\n\n\n"));
+        payload.AddRange([0x1d, (byte)'V', 0x00]);
 
-        return Encoding.ASCII.GetBytes(payload);
+        return payload.ToArray();
+    }
+
+    private static byte[] EncodeEscPosText(string text)
+    {
+        var bytes = new List<byte>(text.Length);
+
+        foreach (var character in text)
+        {
+            // ESC/POS PC437 bytes for the block glyphs used in the test header.
+            var value = character switch
+            {
+                '█' => (byte)0xdb,
+                '▄' => (byte)0xdc,
+                '▀' => (byte)0xdf,
+                <= '\x7f' => (byte)character,
+                _ => (byte)'?',
+            };
+
+            bytes.Add(value);
+        }
+
+        return bytes.ToArray();
     }
 }

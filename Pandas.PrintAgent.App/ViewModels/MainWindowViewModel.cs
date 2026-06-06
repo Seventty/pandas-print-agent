@@ -6,7 +6,6 @@ using Pandas.PrintAgent.Core;
 using Pandas.PrintAgent.Core.Backend;
 using Pandas.PrintAgent.Core.Logging;
 using Pandas.PrintAgent.Core.Printing;
-using Pandas.PrintAgent.Core.Security;
 using Pandas.PrintAgent.Core.Settings;
 using Pandas.PrintAgent.Core.Worker;
 
@@ -16,14 +15,13 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
 {
     private readonly string _baseDirectory;
     private readonly AgentSettingsService? _settingsService;
-    private readonly ITokenStore? _tokenStore;
     private readonly BackendStatusService? _backendStatus;
     private readonly IPrinterService? _printer;
     private readonly FileAgentLogger? _logger;
     private readonly PrintAgentWorker? _worker;
 
     [ObservableProperty]
-    private string backendBaseUrl = "https://tu-backend-paleden.example.com";
+    private string backendBaseUrl = "https://backend.example.com";
 
     [ObservableProperty]
     private string apiPrefix = "api";
@@ -71,13 +69,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     private string statusForeground = "#536170";
 
     [ObservableProperty]
-    private string tokenStorageStatus = "Sin verificar";
-
-    [ObservableProperty]
     private string lastJob = "Ninguno";
-
-    [ObservableProperty]
-    private string lastError = "Ninguno";
 
     [ObservableProperty]
     private string lastLogLine = string.Empty;
@@ -98,7 +90,6 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     public MainWindowViewModel(
         string baseDirectory,
         AgentSettingsService settingsService,
-        ITokenStore tokenStore,
         BackendStatusService backendStatus,
         IPrinterService printer,
         FileAgentLogger logger,
@@ -106,7 +97,6 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     {
         _baseDirectory = baseDirectory;
         _settingsService = settingsService;
-        _tokenStore = tokenStore;
         _backendStatus = backendStatus;
         _printer = printer;
         _logger = logger;
@@ -128,16 +118,13 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
 
     public async Task InitializeAsync()
     {
-        if (_settingsService is null || _tokenStore is null)
+        if (_settingsService is null)
         {
             return;
         }
 
         await RunBusyAsync(async () =>
         {
-            var availability = await _tokenStore.CheckAvailabilityAsync();
-            TokenStorageStatus = availability.Message;
-
             var settings = await _settingsService.LoadAsync();
             ApplySettings(settings);
             await ReloadWorkerAsync(settings);
@@ -153,9 +140,8 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
             var settings = BuildSettings();
             RequireRuntimeServices();
             await _settingsService!.SaveAsync(settings, AgentToken);
-            _logger!.UpdateLogFilePath(settings.LogFilePath);
-            SetStatus("Configuracion guardada.", true);
-            TokenStorageStatus = "Token guardado en almacenamiento seguro.";
+            await ReloadWorkerAsync(settings);
+            await CheckBackendAsync(settings);
         });
     }
 
@@ -192,7 +178,6 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
             _logger!.UpdateLogFilePath(settings.LogFilePath);
             await PrintAgentDiagnostics.RunTestPrintAsync(settings, _printer!, _logger, CancellationToken.None);
             SetStatus("Prueba enviada a la impresora.", true);
-            LastError = "Ninguno";
         });
     }
 
@@ -211,9 +196,8 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
                 UseShellExecute = true,
             });
         }
-        catch (Exception error)
+        catch
         {
-            LastError = error.Message;
             SetStatus("No se pudieron abrir los logs.", false);
         }
     }
@@ -258,7 +242,6 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
             _ => result.Message,
         };
         SetStatus(message, connected);
-        LastError = result.Kind == BackendStatusKind.Connected ? "Ninguno" : result.Message;
     }
 
     private AgentSettings BuildSettings()
@@ -300,7 +283,6 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     {
         SetStatus(snapshot.Message, snapshot.State is AgentWorkerState.Idle or AgentWorkerState.Connected or AgentWorkerState.Printing);
         LastJob = string.IsNullOrWhiteSpace(snapshot.LastJob) ? "Ninguno" : snapshot.LastJob;
-        LastError = string.IsNullOrWhiteSpace(snapshot.LastError) ? "Ninguno" : snapshot.LastError;
         IsWorkerRunning = _worker?.IsRunning ?? false;
     }
 
@@ -318,7 +300,6 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         }
         catch (Exception error)
         {
-            LastError = error.Message;
             SetStatus(error.Message, false);
         }
         finally

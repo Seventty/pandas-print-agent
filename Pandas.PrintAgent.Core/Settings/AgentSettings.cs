@@ -2,9 +2,9 @@ namespace Pandas.PrintAgent.Core.Settings;
 
 public sealed record AgentSettings
 {
-    public const string DefaultToken = "change-me-print-agent-token";
+    public const string DefaultToken = "";
 
-    public string BackendBaseUrl { get; init; } = "https://tu-backend-paleden.example.com";
+    public string BackendBaseUrl { get; init; } = "https://backend.example.com";
     public string ApiPrefix { get; init; } = "api";
     public string AgentToken { get; init; } = DefaultToken;
     public int PollIntervalMs { get; init; } = 2000;
@@ -29,11 +29,7 @@ public sealed record AgentSettings
     {
         if (!Uri.TryCreate(BackendBaseUrl, UriKind.Absolute, out _))
         {
-            throw new InvalidOperationException("BackendBaseUrl debe ser una URL absoluta, por ejemplo https://api.paleden.com.");
-        }
-        if (string.IsNullOrWhiteSpace(AgentToken))
-        {
-            throw new InvalidOperationException("AgentToken no puede estar vacio.");
+            throw new InvalidOperationException("BackendBaseUrl debe ser una URL absoluta, por ejemplo https://backend.example.com.");
         }
         if (string.IsNullOrWhiteSpace(PrinterHost))
         {

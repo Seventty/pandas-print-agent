@@ -42,6 +42,23 @@ public sealed class BackendStatusServiceTests
         Assert.Equal(BackendStatusKind.BackendUnreachable, result.Kind);
     }
 
+    [Fact]
+    public void HttpClientAddsTokenHeaderWhenTokenIsConfigured()
+    {
+        using var client = PrintAgentHttpClientFactory.Create(ValidSettings() with { AgentToken = " secret-token " });
+
+        Assert.True(client.DefaultRequestHeaders.TryGetValues("X-Print-Agent-Token", out var values));
+        Assert.Equal("secret-token", Assert.Single(values));
+    }
+
+    [Fact]
+    public void HttpClientOmitsTokenHeaderWhenTokenIsEmpty()
+    {
+        using var client = PrintAgentHttpClientFactory.Create(ValidSettings() with { AgentToken = "" });
+
+        Assert.False(client.DefaultRequestHeaders.Contains("X-Print-Agent-Token"));
+    }
+
     private static HttpClient Client(HttpStatusCode statusCode, string content)
     {
         return new HttpClient(new StaticResponseHandler(statusCode, content));
