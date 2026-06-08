@@ -11,11 +11,11 @@ public partial class MainWindow : Window
         InitializeComponent();
         CanResize = false;
         Width = 760;
-        Height = 820;
+        Height = 780;
         MinWidth = 760;
-        MinHeight = 820;
+        MinHeight = 780;
         MaxWidth = 760;
-        MaxHeight = 820;
+        MaxHeight = 780;
     }
 
     protected override void OnPropertyChanged(Avalonia.AvaloniaPropertyChangedEventArgs change)
