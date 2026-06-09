@@ -3,6 +3,7 @@ using System.Collections.ObjectModel;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Pandas.PrintAgent.App.Services;
 using Pandas.PrintAgent.Core;
 using Pandas.PrintAgent.Core.Backend;
 using Pandas.PrintAgent.Core.Logging;
@@ -38,6 +39,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     private readonly IInstalledPrinterDiscoveryService? _printerDiscovery;
     private readonly FileAgentLogger? _logger;
     private readonly PrintAgentWorker? _worker;
+    private readonly UpdateService? _updateService;
     private IReadOnlyList<InstalledPrinterInfo> installedPrinters = [];
 
     [ObservableProperty]
@@ -134,10 +136,27 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     private string lastLogLine = string.Empty;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanRestartForUpdate))]
+    [NotifyCanExecuteChangedFor(nameof(RestartForUpdateCommand))]
     private bool isBusy;
 
     [ObservableProperty]
     private bool isWorkerRunning;
+
+    [ObservableProperty]
+    private string appVersionText = "desarrollo";
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanRestartForUpdate))]
+    [NotifyCanExecuteChangedFor(nameof(RestartForUpdateCommand))]
+    private bool isUpdateReady;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanRestartForUpdate))]
+    [NotifyCanExecuteChangedFor(nameof(RestartForUpdateCommand))]
+    private bool isWorkerPrinting;
+
+    public bool CanRestartForUpdate => IsUpdateReady && !IsWorkerPrinting && !IsBusy;
 
     public MainWindowViewModel()
     {
@@ -153,7 +172,8 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         IPrinterService printer,
         IInstalledPrinterDiscoveryService printerDiscovery,
         FileAgentLogger logger,
-        PrintAgentWorker worker)
+        PrintAgentWorker worker,
+        UpdateService updateService)
     {
         _baseDirectory = baseDirectory;
         _settingsService = settingsService;
@@ -162,6 +182,8 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         _printerDiscovery = printerDiscovery;
         _logger = logger;
         _worker = worker;
+        _updateService = updateService;
+        AppVersionText = FormatVersionText(updateService.CurrentVersionText);
 
         _logger.LineWritten += (_, line) =>
         {
@@ -192,6 +214,16 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
             await ReloadWorkerAsync(settings);
             await CheckBackendAsync(settings);
         });
+    }
+
+    public async Task CheckForUpdatesOnStartupAsync()
+    {
+        if (_updateService is null || !_updateService.AutoCheckOnStartup)
+        {
+            return;
+        }
+
+        await CheckForUpdatesAsync();
     }
 
     [RelayCommand]
@@ -234,6 +266,30 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     private async Task CheckBackendAsync()
     {
         await RunBusyAsync(async () => await CheckBackendAsync(BuildSettings()));
+    }
+
+    private async Task CheckForUpdatesAsync()
+    {
+        await RunBusyAsync(async () =>
+        {
+            if (_updateService is null)
+            {
+                return;
+            }
+
+            try
+            {
+                IsUpdateReady = false;
+                var result = await _updateService.CheckDownloadAndPrepareAsync();
+                ApplyUpdateResult(result);
+                _logger?.Log(result.Message);
+            }
+            catch (Exception error)
+            {
+                IsUpdateReady = false;
+                _logger?.Log($"Update fallo: {error.Message}");
+            }
+        });
     }
 
     [RelayCommand]
@@ -289,6 +345,32 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
             await _worker.StopAsync();
         }
         RequestExit?.Invoke();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanRestartForUpdate))]
+    private async Task RestartForUpdateAsync()
+    {
+        await RunBusyAsync(async () =>
+        {
+            if (_updateService is null || !IsUpdateReady)
+            {
+                return;
+            }
+
+            if (IsWorkerPrinting)
+            {
+                return;
+            }
+
+            if (_worker is not null)
+            {
+                await _worker.StopAsync();
+            }
+
+            _updateService.ApplyPendingUpdateOnExit();
+            IsExitRequested = true;
+            RequestExit?.Invoke();
+        });
     }
 
     public async ValueTask DisposeAsync()
@@ -379,6 +461,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         SetStatus(snapshot.Message, snapshot.State is AgentWorkerState.Idle or AgentWorkerState.Connected or AgentWorkerState.Printing);
         LastJob = string.IsNullOrWhiteSpace(snapshot.LastJob) ? "Ninguno" : snapshot.LastJob;
         IsWorkerRunning = _worker?.IsRunning ?? false;
+        IsWorkerPrinting = snapshot.State == AgentWorkerState.Printing;
     }
 
     private async Task RunBusyAsync(Func<Task> action)
@@ -502,5 +585,26 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     {
         PrinterStatusText = message;
         PrinterStatusForeground = isPositive ? "#1F6F43" : "#B42318";
+    }
+
+    private void ApplyUpdateResult(UpdateCheckResult result)
+    {
+        IsUpdateReady = result.Kind == UpdateCheckKind.UpdateReady;
+        AppVersionText = FormatVersionText(_updateService?.CurrentVersionText ?? AppVersionText);
+    }
+
+    private static string FormatVersionText(string? version)
+    {
+        if (string.IsNullOrWhiteSpace(version))
+        {
+            return "desarrollo";
+        }
+
+        var trimmed = version.Trim();
+        return trimmed.Equals("desarrollo", StringComparison.OrdinalIgnoreCase) ||
+            trimmed.StartsWith('v') ||
+            trimmed.StartsWith('V')
+            ? trimmed
+            : $"v{trimmed}";
     }
 }

@@ -5,6 +5,7 @@ using Avalonia.Data.Core;
 using Avalonia.Data.Core.Plugins;
 using Avalonia.Markup.Xaml;
 using Avalonia.Platform;
+using Pandas.PrintAgent.Core;
 using Pandas.PrintAgent.Core.Backend;
 using Pandas.PrintAgent.Core.Logging;
 using Pandas.PrintAgent.Core.Printing;
@@ -30,7 +31,7 @@ public partial class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            var baseDirectory = AppContext.BaseDirectory;
+            var baseDirectory = AgentPaths.GetDefaultDataDirectory();
             var tokenStore = new SecureTokenStore();
             var settingsService = new AgentSettingsService(baseDirectory, tokenStore);
             var backendStatus = new BackendStatusService();
@@ -38,7 +39,8 @@ public partial class App : Application
             var printerDiscovery = new InstalledPrinterDiscoveryService();
             var logger = new FileAgentLogger(baseDirectory, null, writeToConsole: false);
             var worker = new PrintAgentWorker(baseDirectory, printer, logger);
-            var viewModel = new MainWindowViewModel(baseDirectory, settingsService, backendStatus, printer, printerDiscovery, logger, worker);
+            var updateService = new UpdateService(UpdateServiceOptions.FromEnvironment());
+            var viewModel = new MainWindowViewModel(baseDirectory, settingsService, backendStatus, printer, printerDiscovery, logger, worker, updateService);
             var window = new MainWindow
             {
                 DataContext = viewModel,
@@ -61,6 +63,7 @@ public partial class App : Application
             {
                 window.Hide();
                 await viewModel.InitializeAsync();
+                await viewModel.CheckForUpdatesOnStartupAsync();
             };
 
             desktop.Exit += async (_, _) =>

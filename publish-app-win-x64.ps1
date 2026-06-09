@@ -1,2 +1,37 @@
+param(
+  [switch]$Velopack,
+  [switch]$Msi,
+  [switch]$NoDelta,
+  [Alias("PackageVersion")]
+  [string]$Version,
+  [string]$Channel
+)
+
 $ErrorActionPreference = "Stop"
-& (Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) "publish-app.ps1") -Runtime "win-x64"
+
+$publishScript = Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) "publish-app.ps1"
+$publishArgs = @{
+  Runtime = "win-x64"
+}
+
+if ($Velopack) {
+  $publishArgs.Velopack = $true
+}
+
+if ($Msi) {
+  $publishArgs.Msi = $true
+}
+
+if ($NoDelta) {
+  $publishArgs.NoDelta = $true
+}
+
+if (-not [string]::IsNullOrWhiteSpace($Version)) {
+  $publishArgs.PackageVersion = $Version
+}
+
+if (-not [string]::IsNullOrWhiteSpace($Channel)) {
+  $publishArgs.Channel = $Channel
+}
+
+& $publishScript @publishArgs

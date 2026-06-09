@@ -16,6 +16,7 @@ PANDAS es generico por diseno. No esta ligado a un backend, ERP, tienda o provee
 - [Requisitos de cola en el backend](#requisitos-de-cola-en-el-backend)
 - [Levantar en desarrollo](#levantar-en-desarrollo)
 - [Publicar builds](#publicar-builds)
+- [Instalador y updates con Velopack](#instalador-y-updates-con-velopack)
 - [Guia de operacion](#guia-de-operacion)
 - [Diagnostico y soporte](#diagnostico-y-soporte)
 - [Seguridad](#seguridad)
@@ -250,6 +251,24 @@ Las variables de entorno pueden sobrescribir `appsettings.json`.
 | `PANDAS_PRINT_AGENT_LOG` | Ruta del archivo de log. |
 | `PANDAS_SAVE_PAYLOADS` | Guarda payloads binarios recibidos para diagnostico. |
 | `PANDAS_PAYLOAD_DUMP_DIRECTORY` | Carpeta para payload dumps. |
+| `PANDAS_PRINT_AGENT_DATA_DIR` | Override opcional de la carpeta persistente de settings/logs/payloads. |
+
+### Variables de update
+
+La app instalada busca updates en GitHub Releases publicos. Por defecto usa:
+
+```text
+https://github.com/Seventty/pandas-print-agent
+```
+
+No hace falta crear archivos locales, copiar tokens ni configurar cada PC para que el autoupdate funcione.
+
+| Variable | Descripcion |
+| --- | --- |
+| `PANDAS_UPDATE_GITHUB_REPO_URL` | Override opcional del repositorio GitHub que contiene los releases de Velopack. |
+| `PANDAS_UPDATE_GITHUB_PRERELEASE` | `true` para considerar prereleases; `false` para stable. |
+| `PANDAS_UPDATE_CHANNEL` | Canal de Velopack, por ejemplo `stable` o `beta`. |
+| `PANDAS_UPDATE_AUTO_CHECK` | `true` para revisar updates al iniciar la app instalada. |
 
 ## Contrato Del Backend
 
@@ -553,6 +572,107 @@ xattr -dr com.apple.quarantine .
 ```
 
 La salida actual de macOS es un ejecutable publicado, no un bundle `.app` completo. Para distribuirlo de forma amigable en macOS, conviene empaquetarlo como `.app`, firmarlo, notarizarlo y distribuirlo en `.dmg` o `.pkg`.
+
+## Instalador Y Updates Con Velopack
+
+La app desktop integra Velopack para instalador y autoupdate. Al iniciar, `Program.cs` ejecuta `VelopackApp.Build().Run()` antes de crear Avalonia. El source de updates por defecto es el repositorio publico `https://github.com/Seventty/pandas-print-agent`.
+
+### Datos persistentes
+
+Los settings, logs y payload dumps ya no usan el folder instalado como base en la GUI/CLI. La ruta por defecto es:
+
+| Sistema | Ruta |
+| --- | --- |
+| Windows | `%LocalAppData%\PANDAS\PrintAgent` |
+| macOS | `~/Library/Application Support/PANDAS/PrintAgent` |
+| Linux | `$XDG_CONFIG_HOME/pandas-print-agent` o `~/.config/pandas-print-agent` |
+
+Puedes sobrescribirla con `PANDAS_PRINT_AGENT_DATA_DIR`.
+
+### Source de updates
+
+No se empaqueta ningun token de GitHub dentro del instalador. Como el repositorio es publico, Velopack puede leer releases directamente desde GitHub sin autenticacion.
+
+Si necesitas probar contra otro repositorio publico o un fork, puedes sobrescribir temporalmente:
+
+```powershell
+$env:PANDAS_UPDATE_GITHUB_REPO_URL="https://github.com/OWNER/REPO"
+```
+
+### Empaquetar
+
+Instala la CLI de Velopack:
+
+```powershell
+dotnet tool install -g vpk
+```
+
+Si ya esta instalada:
+
+```powershell
+dotnet tool update -g vpk
+```
+
+Generar publish + paquete Velopack para Windows:
+
+```powershell
+.\publish-app-win-x64.ps1 -Velopack -Version 1.0.0
+```
+
+Tambien puedes pasar la version mediante variable de entorno:
+
+```powershell
+$env:PANDAS_VELOPACK_PACK_VERSION="1.0.0"
+.\publish-app-win-x64.ps1 -Velopack
+```
+
+MSI opcional en Windows:
+
+```powershell
+.\publish-app-win-x64.ps1 -Velopack -Msi -Version 1.0.0
+```
+
+Si tienes poco espacio en disco o el paquete anterior era muy grande, puedes generar solo full package sin delta:
+
+```powershell
+.\publish-app-win-x64.ps1 -Velopack -Version 1.0.5 -NoDelta
+```
+
+Los paquetes quedan por defecto en:
+
+```text
+releases/<runtime>/
+```
+
+### Publicar en GitHub Releases
+
+Sube los assets generados por Velopack al GitHub Release correspondiente. Aunque el repositorio sea publico, necesitas un token con permiso de escritura para crear o actualizar releases. Ese token se usa solo en tu terminal o CI; no se empaqueta dentro de la app.
+
+Usa el script de upload del repo para evitar publicar un tag que no coincida con la version real del paquete. El script valida `releases.<channel>.json`, `assets.<channel>.json` y el `.nupkg` full antes de llamar a `vpk upload`.
+
+```powershell
+$env:VPK_GITHUB_TOKEN="TU_TOKEN_WRITE"
+
+.\upload-velopack-github.ps1 -Version 1.0.0 -Runtime win-x64 -Publish
+```
+
+Puedes validar sin subir nada:
+
+```powershell
+.\upload-velopack-github.ps1 -Version 1.0.0 -Runtime win-x64 -DryRun
+```
+
+El release debe estar publicado; si queda como draft, la app instalada no lo vera. Si creas `v1.0.5`, los assets deben contener paquetes `1.0.5`; no basta con cambiar el tag del release.
+
+### Comportamiento de update en la app
+
+La UI muestra la version actual. Cuando hay un update descargado, muestra `actual -> disponible` y habilita el boton `Reiniciar para actualizar`. El flujo implementado es:
+
+1. Revisar updates al iniciar si `PANDAS_UPDATE_AUTO_CHECK=true`.
+2. Descargar la nueva version en segundo plano.
+3. Marcar el update como listo.
+4. Aplicar solo con `Reiniciar para actualizar`.
+5. Bloquear el reinicio si el worker esta imprimiendo.
 
 ## Guia De Operacion
 

@@ -69,17 +69,32 @@
                     Background="#FFFFFF"
                     BorderBrush="#D9E0E7"
                     BorderThickness="1">
-                <Grid RowDefinitions="Auto,Auto" RowSpacing="6">
+                <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="*,Auto" RowSpacing="6" ColumnSpacing="16">
                     <StackPanel Grid.Row="0" Grid.Column="0" Spacing="0">
                         <TextBlock Text="PANDAS"
                                    FontSize="28"
                                    FontWeight="SemiBold"
                                    Foreground="#15202B"/>
-                        <TextBlock Text="Print Agent"
-                                   FontSize="14"
-                                   Foreground="#536170"/>
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock Text="Print Agent"
+                                       FontSize="14"
+                                       Foreground="#536170"/>
+                            <TextBlock Text="{Binding AppVersionText}"
+                                       FontSize="14"
+                                       Foreground="#536170"/>
+                        </StackPanel>
                     </StackPanel>
+                    <Button Grid.Row="0"
+                            Grid.Column="1"
+                            Content="Actualizar"
+                            Command="{Binding RestartForUpdateCommand}"
+                            IsVisible="{Binding IsUpdateReady}"
+                            MinWidth="104"
+                            Margin="0,0,8,0"
+                            VerticalAlignment="Center"/>
                     <TextBlock Grid.Row="1"
+                               Grid.Column="0"
+                               Grid.ColumnSpan="2"
                                Text="{Binding StatusText}"
                                TextWrapping="Wrap"
                                Foreground="{Binding StatusForeground}"

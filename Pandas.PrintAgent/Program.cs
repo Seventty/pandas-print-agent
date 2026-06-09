@@ -10,7 +10,7 @@ Console.OutputEncoding = Encoding.UTF8;
 
 try
 {
-    var baseDirectory = AppContext.BaseDirectory;
+    var baseDirectory = AgentPaths.GetDefaultDataDirectory();
     var settingsService = new AgentSettingsService(baseDirectory, new SecureTokenStore());
     var settings = await settingsService.LoadAsync();
     var logger = new FileAgentLogger(baseDirectory, settings.LogFilePath);
