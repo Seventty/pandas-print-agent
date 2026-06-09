@@ -13,7 +13,7 @@
         Width="760"
         Height="780"
         MinWidth="760"
-        MinHeight="780"
+        MinHeight="560"
         MaxWidth="760"
         MaxHeight="780"
         CanResize="False"
@@ -59,10 +59,28 @@
             <Setter Property="Background" Value="#EEF3F7"/>
             <Setter Property="BorderBrush" Value="#8DA2B5"/>
         </Style>
+        <Style Selector="Button.text-link">
+            <Setter Property="Foreground" Value="#2F5F8F"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="MinHeight" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+        <Style Selector="Button.text-link:pointerover">
+            <Setter Property="Foreground" Value="#173F69"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+        </Style>
+        <Style Selector="Button.contact-button">
+            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+            <Setter Property="Padding" Value="14,10"/>
+        </Style>
     </Window.Styles>
 
-    <ScrollViewer>
-        <Grid Margin="24" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="18">
+    <Grid>
+        <ScrollViewer>
+        <Grid Margin="24" RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="18">
             <Border Grid.Row="0"
                     Padding="18"
                     CornerRadius="6"
@@ -75,14 +93,9 @@
                                    FontSize="28"
                                    FontWeight="SemiBold"
                                    Foreground="#15202B"/>
-                        <StackPanel Orientation="Horizontal" Spacing="8">
-                            <TextBlock Text="Print Agent"
-                                       FontSize="14"
-                                       Foreground="#536170"/>
-                            <TextBlock Text="{Binding AppVersionText}"
-                                       FontSize="14"
-                                       Foreground="#536170"/>
-                        </StackPanel>
+                        <TextBlock Text="Print Agent"
+                                   FontSize="14"
+                                   Foreground="#536170"/>
                     </StackPanel>
                     <Button Grid.Row="0"
                             Grid.Column="1"
@@ -225,7 +238,7 @@
                 <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding LastJob}" TextWrapping="Wrap" Foreground="#27384A"/>
             </Grid>
 
-            <Grid Grid.Row="4" RowDefinitions="Auto,Auto" RowSpacing="12">
+            <Grid Grid.Row="4" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="10">
                 <WrapPanel Grid.Row="0" HorizontalAlignment="Right" ItemSpacing="8">
                     <Button Content="Guardar" Command="{Binding SaveCommand}" MinWidth="96"/>
                     <Button Content="Reload" Command="{Binding ReloadCommand}" MinWidth="96"/>
@@ -243,12 +256,116 @@
                         CornerRadius="6">
                     <TextBlock Text="{Binding LastLogLine}" TextWrapping="Wrap" Foreground="#27384A"/>
                 </Border>
-            </Grid>
 
-            <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Center" Spacing="14">
-                <TextBlock Text="https://github.com/seventty" Foreground="#2F5F8F"/>
-                <TextBlock Text="https://www.linkedin.com/in/rainieryvalerio" Foreground="#2F5F8F"/>
-            </StackPanel>
+                <Border Grid.Row="2"
+                        Height="1"
+                        Margin="0,4,0,0"
+                        Background="#D9E0E7"/>
+
+                <Grid Grid.Row="3" ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" Margin="0,2,0,0">
+                    <TextBlock Grid.Column="0"
+                               Grid.Row="0"
+                               Text="{Binding CopyrightText}"
+                               FontSize="12"
+                               Foreground="#536170"
+                               VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="0"
+                               Grid.Row="1"
+                               Text="{Binding AppVersionText}"
+                               FontSize="12"
+                               Foreground="#536170"
+                               Margin="0,2,0,0"/>
+                    <Button Grid.Column="1"
+                            Grid.Row="0"
+                            Grid.RowSpan="2"
+                            Classes="text-link"
+                            Content="contacto"
+                            Command="{Binding OpenContactCommand}"
+                            FontSize="12"
+                            VerticalAlignment="Center"/>
+                </Grid>
+            </Grid>
         </Grid>
-    </ScrollViewer>
+        </ScrollViewer>
+
+        <Border Background="#66000000"
+                IsVisible="{Binding IsContactModalOpen}">
+            <Border Width="360"
+                    Padding="18"
+                    CornerRadius="6"
+                    Background="#FFFFFF"
+                    BorderBrush="#D9E0E7"
+                    BorderThickness="1"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center">
+                <Grid RowDefinitions="Auto,Auto" RowSpacing="16">
+                    <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
+                        <StackPanel Grid.Column="0" Spacing="2">
+                            <TextBlock Text="Contacto"
+                                       FontSize="18"
+                                       FontWeight="SemiBold"
+                                       Foreground="#15202B"/>
+                            <TextBlock Text="Rainiery Valerio Gonzalez"
+                                       FontSize="13"
+                                       Foreground="#536170"/>
+                        </StackPanel>
+                        <Button Grid.Column="1"
+                                Command="{Binding CloseContactCommand}"
+                                ToolTip.Tip="Cerrar"
+                                Width="32"
+                                Height="32"
+                                Padding="0"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                HorizontalContentAlignment="Center"
+                                VerticalContentAlignment="Center"
+                                VerticalAlignment="Top">
+                            <Viewbox Width="14" Height="14">
+                                <Path Width="24"
+                                      Height="24"
+                                      Stroke="#536170"
+                                      StrokeThickness="2"
+                                      StrokeLineCap="Round"
+                                      Data="M6 6 L18 18 M18 6 L6 18"/>
+                            </Viewbox>
+                        </Button>
+                    </Grid>
+
+                    <StackPanel Grid.Row="1" Spacing="10">
+                        <Button Classes="contact-button"
+                                Command="{Binding OpenLinkedInCommand}">
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <Border Width="20"
+                                        Height="20"
+                                        CornerRadius="3"
+                                        Background="#0A66C2">
+                                    <TextBlock Text="in"
+                                               Foreground="#FFFFFF"
+                                               FontWeight="Bold"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"/>
+                                </Border>
+                                <TextBlock Text="LinkedIn"
+                                           VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+
+                        <Button Classes="contact-button"
+                                Command="{Binding OpenGitHubCommand}">
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <Viewbox Width="20" Height="20">
+                                    <Path Width="24"
+                                          Height="24"
+                                          Fill="#24292F"
+                                          Data="M12 2C6.48 2 2 6.58 2 12.26c0 4.49 2.87 8.3 6.84 9.64.5.1.68-.22.68-.49v-1.72c-2.78.62-3.37-1.22-3.37-1.22-.45-1.19-1.11-1.51-1.11-1.51-.91-.64.07-.63.07-.63 1 .07 1.52 1.05 1.52 1.05.9 1.58 2.36 1.12 2.94.86.09-.67.35-1.12.63-1.38-2.22-.26-4.56-1.14-4.56-5.06 0-1.12.39-2.03 1.03-2.75-.1-.26-.45-1.31.1-2.71 0 0 .84-.28 2.75 1.05A9.3 9.3 0 0 1 12 6.84c.85 0 1.71.12 2.51.34 1.9-1.33 2.74-1.05 2.74-1.05.55 1.4.2 2.45.1 2.71.64.72 1.03 1.63 1.03 2.75 0 3.93-2.34 4.8-4.57 5.06.36.32.68.94.68 1.9v2.85c0 .27.18.59.69.49A10.08 10.08 0 0 0 22 12.26C22 6.58 17.52 2 12 2z"/>
+                                </Viewbox>
+                                <TextBlock Text="GitHub"
+                                           VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Border>
+    </Grid>
 </Window>

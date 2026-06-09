@@ -32,6 +32,9 @@ public sealed record InstalledPrinterOption(string Name, string Label, Installed
 
 public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
 {
+    private const string GitHubUrl = "https://github.com/seventty";
+    private const string LinkedInUrl = "https://www.linkedin.com/in/rainieryvalerio";
+
     private readonly string _baseDirectory;
     private readonly AgentSettingsService? _settingsService;
     private readonly BackendStatusService? _backendStatus;
@@ -134,6 +137,11 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
 
     [ObservableProperty]
     private string lastLogLine = string.Empty;
+
+    [ObservableProperty]
+    private bool isContactModalOpen;
+
+    public string CopyrightText => $"© {DateTime.Now.Year} Rainiery Valerio Gonzalez";
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanRestartForUpdate))]
@@ -334,6 +342,30 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         {
             SetStatus("No se pudieron abrir los logs.", false);
         }
+    }
+
+    [RelayCommand]
+    private void OpenContact()
+    {
+        IsContactModalOpen = true;
+    }
+
+    [RelayCommand]
+    private void CloseContact()
+    {
+        IsContactModalOpen = false;
+    }
+
+    [RelayCommand]
+    private void OpenGitHub()
+    {
+        OpenExternalUrl(GitHubUrl);
+    }
+
+    [RelayCommand]
+    private void OpenLinkedIn()
+    {
+        OpenExternalUrl(LinkedInUrl);
     }
 
     [RelayCommand]
@@ -585,6 +617,22 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     {
         PrinterStatusText = message;
         PrinterStatusForeground = isPositive ? "#1F6F43" : "#B42318";
+    }
+
+    private void OpenExternalUrl(string url)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = url,
+                UseShellExecute = true,
+            });
+        }
+        catch
+        {
+            SetStatus("No se pudo abrir el enlace.", false);
+        }
     }
 
     private void ApplyUpdateResult(UpdateCheckResult result)
